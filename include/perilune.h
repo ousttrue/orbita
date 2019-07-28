@@ -97,6 +97,11 @@ public:
 template <typename T>
 class ValueType
 {
+    // userdata dummy for Type
+    struct TypeUserData
+    {
+    };
+
     static const char *TypeMetatableName()
     {
         static std::string name = std::string("Type ") + typeid(T).name();
@@ -155,7 +160,7 @@ public:
     // upvalue 1:table(userdata), 2:key
     static int TypeMethodDispatch(lua_State *L)
     {
-        auto type = *UserData<ValueType *>::Get(L, lua_upvalueindex(1));
+        auto type = GetValueType(L);
         auto key = lua_tostring(L, lua_upvalueindex(2));
 
         auto found = type->m_typeMap.find(key);
@@ -194,7 +199,7 @@ public:
         lua_pop(L, 1);
 
         // type userdata
-        auto p = UserData<ValueType *>::New(L, this, TypeMetatableName());
+        UserData<TypeUserData>::New(L, TypeUserData{}, TypeMetatableName());
     }
 #pragma endregion
 
@@ -313,11 +318,12 @@ public:
         lua_setfield(L, metatable, "__index");
     }
 
-    static ValueType* GetValueType(lua_State *L)
+    // from registry
+    static ValueType *GetValueType(lua_State *L)
     {
         lua_pushlightuserdata(L, (void *)typeid(ValueType).hash_code()); // key
         lua_gettable(L, LUA_REGISTRYINDEX);
-        auto p= (ValueType *)lua_topointer(L, -1);
+        auto p = (ValueType *)lua_topointer(L, -1);
         lua_pop(L, 1);
         return p;
     }

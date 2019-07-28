@@ -2,9 +2,11 @@
 
 header only lua binding
 
-## ToDo
+## features
 
 * [x] function table to registry
+* [x] getter
+* [ ] setter
 * [ ] operator
 * [ ] indexer
 * [ ] generic typed array
