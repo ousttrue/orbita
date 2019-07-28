@@ -100,7 +100,6 @@ class ValueType
     struct ValueWithType
     {
         T Value;
-        const ValueType *Type;
     };
 
     static const char *TypeMetatableName()
@@ -277,8 +276,7 @@ public:
     // stack 1:table(userdata), 2:key
     static int InstanceIndexDispatch(lua_State *L)
     {
-        auto self = UserData<ValueWithType>::Get(L, 1);
-        auto type = self->Type;
+        auto type = GetValueType(L);
         auto key = lua_tostring(L, 2);
 
         {
@@ -286,6 +284,7 @@ public:
             if (found != type->m_getterMap.end())
             {
                 // property
+                auto self = UserData<ValueWithType>::Get(L, 1);
                 return found->second(L, self);
             }
         }
@@ -297,14 +296,14 @@ public:
     // upvalue 1:table(userdata), 2:key
     static int InstanceMethodDispatch(lua_State *L)
     {
-        auto self = UserData<ValueWithType>::Get(L, lua_upvalueindex(1));
-        auto type = self->Type;
+        auto type = GetValueType(L);
         auto key = lua_tostring(L, lua_upvalueindex(2));
 
         {
             auto found = type->m_methodMap.find(key);
             if (found != type->m_methodMap.end())
             {
+                auto self = UserData<ValueWithType>::Get(L, lua_upvalueindex(1));
                 // property
                 return found->second(L, self);
             }
@@ -326,15 +325,20 @@ public:
         lua_setfield(L, metatable, "__index");
     }
 
-    static int PushValue(lua_State *L, const T &value)
+    static ValueType* GetValueType(lua_State *L)
     {
         lua_pushlightuserdata(L, (void *)typeid(ValueType).hash_code()); // key
         lua_gettable(L, LUA_REGISTRYINDEX);
-        auto type = (ValueType *)lua_topointer(L, -1);
+        auto p= (ValueType *)lua_topointer(L, -1);
+        lua_pop(L, 1);
+        return p;
+    }
+
+    static int PushValue(lua_State *L, const T &value)
+    {
         auto self = ValueWithType
         {
             .Value = value,
-            .Type = type,
         };
 
         // type userdata
