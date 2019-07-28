@@ -65,6 +65,30 @@ std::tuple<ARGS...> perilune_totuple(lua_State *L, int index)
 #pragma endregion
 
 template <typename T>
+class UserData
+{
+    UserData() = delete;
+
+public:
+    static T *New(lua_State *L, const T &value, const char *metatableName)
+    {
+        auto p = (T *)lua_newuserdata(L, sizeof(T));
+        *p = value;
+
+        // set metatable to type userdata
+        luaL_getmetatable(L, metatableName);
+        lua_setmetatable(L, -2);
+
+        return p;
+    }
+
+    static T *Get(lua_State *L, int index)
+    {
+        return static_cast<T *>(lua_touserdata(L, index));
+    }
+};
+
+template <typename T>
 class ValueType
 {
     struct ValueWithType
@@ -121,16 +145,6 @@ public:
         return *this;
     }
 
-    static ValueType *GetType(lua_State *L, int index)
-    {
-        auto obj = static_cast<ValueType **>(lua_touserdata(L, index));
-        if (!obj)
-        {
-            return nullptr;
-        }
-        return *obj;
-    }
-
     // stack 1:table(userdata), 2:key
     static int TypeIndexDispatch(lua_State *L)
     {
@@ -141,7 +155,7 @@ public:
     // upvalue 1:table(userdata), 2:key
     static int TypeMethodDispatch(lua_State *L)
     {
-        auto type = GetType(L, lua_upvalueindex(1));
+        auto type = *UserData<ValueType *>::Get(L, lua_upvalueindex(1));
         auto key = lua_tostring(L, lua_upvalueindex(2));
 
         auto found = type->m_typeMap.find(key);
@@ -166,17 +180,16 @@ public:
 
     void PushType(lua_State *L)
     {
-        // type userdata
-        auto p = (ValueType **)lua_newuserdata(L, sizeof(this));
-        *p = this;
-
         // set metatable to type userdata
         LuaNewTypeMetaTable(L);
-        lua_setmetatable(L, -2);
+        lua_pop(L, 1);
 
         //
         LuaNewInstanceMetaTable(L);
         lua_pop(L, 1);
+
+        // type userdata
+        auto p = UserData<ValueType *>::New(L, this, TypeMetatableName());
     }
 #pragma endregion
 
@@ -250,15 +263,10 @@ public:
         return *this;
     }
 
-    static ValueWithType *GetSelf(lua_State *L, int index)
-    {
-        return static_cast<ValueWithType *>(lua_touserdata(L, index));
-    }
-
     // stack 1:table(userdata), 2:key
     static int InstanceIndexDispatch(lua_State *L)
     {
-        auto self = GetSelf(L, 1);
+        auto self = UserData<ValueWithType>::Get(L, 1);
         auto type = self->Type;
         auto key = lua_tostring(L, 2);
 
@@ -278,7 +286,7 @@ public:
     // upvalue 1:table(userdata), 2:key
     static int InstanceMethodDispatch(lua_State *L)
     {
-        auto self = GetSelf(L, lua_upvalueindex(1));
+        auto self = UserData<ValueWithType>::Get(L, lua_upvalueindex(1));
         auto type = self->Type;
         auto key = lua_tostring(L, lua_upvalueindex(2));
 
@@ -327,12 +335,7 @@ public:
     static int PushValue(lua_State *L, const ValueWithType &self)
     {
         // type userdata
-        auto p = (ValueWithType *)lua_newuserdata(L, sizeof(ValueWithType));
-        *p = self;
-
-        // set metatable to type userdata
-        luaL_getmetatable(L, InstanceMetatableName());
-        lua_setmetatable(L, -2);
+        auto p = UserData<ValueWithType>::New(L, self, InstanceMetatableName());
 
         return 1;
     }
