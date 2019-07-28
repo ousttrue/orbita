@@ -65,10 +65,17 @@ int main(int argc, char **argv)
 
     Lua lua;
 
+    std::cout << typeid(&Vector3::x).name() << std::endl;
+
     perilune::ValueType<Vector3> vector3Type;
     vector3Type
         .StaticMethod("Zero", []() { return Vector3(); })
         .StaticMethod("Vector3", [](float x, float y, float z) { return Vector3(x, y, z); })
+        .Getter("x", [](const Vector3 &value) {
+            return value.x;
+        })
+        .Getter("y", &Vector3::y)
+        .Getter("z", &Vector3::z)
         .PushType(lua.L);
     lua_setglobal(lua.L, "Vector3");
 
