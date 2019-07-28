@@ -5,6 +5,7 @@
         "pushcfunction",
         "requiref",
         "sqnorm",
+        "topointer",
         "totuple",
         "touserdata",
         "upvalue",

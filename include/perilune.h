@@ -97,11 +97,6 @@ public:
 template <typename T>
 class ValueType
 {
-    struct ValueWithType
-    {
-        T Value;
-    };
-
     static const char *TypeMetatableName()
     {
         static std::string name = std::string("Type ") + typeid(T).name();
@@ -204,13 +199,7 @@ public:
 #pragma endregion
 
 #pragma region Value
-    // static int InstanceStackToUpvalue(lua_State *L)
-    // {
-    //     lua_pushcclosure(L, &ValueType::InstanceDispatch, 2);
-    //     return 1;
-    // }
-
-    typedef std::function<int(lua_State *, ValueWithType *)> LuaMethod;
+    typedef std::function<int(lua_State *, const T &value)> LuaMethod;
     std::unordered_map<std::string, LuaMethod> m_getterMap;
     std::unordered_map<std::string, LuaMethod> m_methodMap;
     ;
@@ -218,8 +207,8 @@ public:
     template <typename F, typename C, typename R>
     void _Getter(const char *name, const F &f, R (C::*)(const T &value) const)
     {
-        LuaMethod func = [f](lua_State *L, ValueWithType *self) {
-            R r = f(self->Value);
+        LuaMethod func = [f](lua_State *L, const T &value) {
+            R r = f(value);
 
             int result = perilune_pushvalue(L, r);
             return result;
@@ -239,8 +228,8 @@ public:
     ValueType &Getter(const char *name, R C::*f)
     {
         // auto self = this;
-        LuaMethod func = [f](lua_State *L, ValueWithType *self) {
-            R r = self->Value.*f;
+        LuaMethod func = [f](lua_State *L, const T &value) {
+            R r = value.*f;
 
             int result = perilune_pushvalue(L, r);
             return result;
@@ -256,10 +245,10 @@ public:
                   std::index_sequence<IS...>)
     {
         // auto self = this;
-        LuaMethod func = [m](lua_State *L, ValueWithType *self) {
+        LuaMethod func = [m](lua_State *L, const T &value) {
             auto args = perilune_totuple<ARGS...>(L, 1);
 
-            R r = (self->Value.*m)(std::get<IS>(args)...);
+            R r = (value.*m)(std::get<IS>(args)...);
 
             return perilune_pushvalue(L, r);
         };
@@ -284,8 +273,8 @@ public:
             if (found != type->m_getterMap.end())
             {
                 // property
-                auto self = UserData<ValueWithType>::Get(L, 1);
-                return found->second(L, self);
+                auto value = UserData<T>::Get(L, 1);
+                return found->second(L, *value);
             }
         }
 
@@ -303,9 +292,8 @@ public:
             auto found = type->m_methodMap.find(key);
             if (found != type->m_methodMap.end())
             {
-                auto self = UserData<ValueWithType>::Get(L, lua_upvalueindex(1));
-                // property
-                return found->second(L, self);
+                auto value = UserData<T>::Get(L, lua_upvalueindex(1));
+                return found->second(L, *value);
             }
         }
 
@@ -336,13 +324,7 @@ public:
 
     static int PushValue(lua_State *L, const T &value)
     {
-        auto self = ValueWithType
-        {
-            .Value = value,
-        };
-
-        // type userdata
-        UserData<ValueWithType>::New(L, self, InstanceMetatableName());
+        UserData<T>::New(L, value, InstanceMetatableName());
         return 1;
     }
 #pragma endregion
