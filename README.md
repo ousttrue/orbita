@@ -2,6 +2,26 @@
 
 header only lua binding
 
+## ToDo
+
+* [ ] function table to registry
+* [ ] module
+* [ ] interoperability between usertypes
+* [ ] operator
+* [ ] indexer
+* [ ] generic typed array
+* [ ] PointerType
+
+## userdata
+
+```c++
+struct ValueWithType
+{
+    T Value;
+    const ValueType *Type; // ToDo: move to registry
+};
+```
+
 ## usage
 
 ```c++
