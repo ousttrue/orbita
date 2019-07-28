@@ -1,4 +1,4 @@
 # perilune
 
-header only lua binding
+header only lua binding 💫
 

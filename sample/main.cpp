@@ -33,6 +33,28 @@ struct Lua
     }
 };
 
+struct Vector3
+{
+    float x;
+    float y;
+    float z;
+
+    Vector3()
+        : x(0), y(0), z(0)
+    {
+    }
+
+    Vector3::Vector3(float x_, float y_, float z_)
+        : x(x_), y(y_), z(z_)
+    {
+    }
+
+    float SqNorm() const
+    {
+        return x * x + y * y + z * z;
+    }
+};
+
 int main(int argc, char **argv)
 {
     if (argc == 1)
@@ -42,6 +64,13 @@ int main(int argc, char **argv)
     }
 
     Lua lua;
+
+    perilune::ValueType<Vector3> vector3Type;
+    vector3Type
+        .StaticMethod("Zero", []() { return Vector3(); })
+        .StaticMethod("Vector3", [](float x, float y, float z) { return Vector3(x, y, z); })
+        .PushType(lua.L);
+    lua_setglobal(lua.L, "Vector3");
 
     if (!lua.DoFile(argv[1]))
     {

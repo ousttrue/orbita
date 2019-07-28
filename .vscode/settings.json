@@ -1,6 +1,10 @@
 {
     "cSpell.words": [
         "dofile",
-        "requiref"
+        "pushcclosure",
+        "requiref",
+        "totuple",
+        "upvalue",
+        "upvalueindex"
     ]
 }
