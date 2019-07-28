@@ -67,7 +67,7 @@ int main(int argc, char **argv)
 
     std::cout << typeid(&Vector3::x).name() << std::endl;
 
-    perilune::ValueType<Vector3> vector3Type;
+    perilune::UserType<Vector3> vector3Type;
     vector3Type
         // lambda
         .StaticMethod("Zero", []() { return Vector3(); })

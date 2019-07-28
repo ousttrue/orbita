@@ -32,7 +32,7 @@ static int perilune_pushvalue(lua_State *L, float n)
 template <typename T>
 static int perilune_pushvalue(lua_State *L, const T &t)
 {
-    return ValueType<T>::PushValue(L, t);
+    return UserType<T>::PushValue(L, t);
 }
 #pragma endregion
 
@@ -219,7 +219,7 @@ public:
 }; // namespace perilune
 
 template <typename T>
-class ValueType
+class UserType
 {
     // userdata dummy for Type
     struct TypeUserData
@@ -228,7 +228,7 @@ class ValueType
 
     static const char *TypeMetatableName()
     {
-        return typeid(ValueType).name();
+        return typeid(UserType).name();
     }
 
     static const char *InstanceMetatableName()
@@ -241,7 +241,7 @@ class ValueType
     // stack 1:table(userdata), 2:key
     static int TypeIndexDispatch(lua_State *L)
     {
-        lua_pushcclosure(L, &ValueType::TypeMethodDispatch, 2);
+        lua_pushcclosure(L, &UserType::TypeMethodDispatch, 2);
         return 1;
     }
 
@@ -267,7 +267,7 @@ class ValueType
         assert(luaL_newmetatable(L, TypeMetatableName()) == 1);
         int metatable = lua_gettop(L);
 
-        lua_pushcfunction(L, &ValueType::TypeIndexDispatch);
+        lua_pushcfunction(L, &UserType::TypeIndexDispatch);
         lua_setfield(L, metatable, "__index");
     }
 
@@ -288,7 +288,7 @@ class ValueType
             }
         }
 
-        lua_pushcclosure(L, &ValueType::InstanceMethodDispatch, 2);
+        lua_pushcclosure(L, &UserType::InstanceMethodDispatch, 2);
         return 1;
     }
 
@@ -316,15 +316,15 @@ class ValueType
 
         // first time
         int metatable = lua_gettop(L);
-        lua_pushcfunction(L, &ValueType::InstanceIndexDispatch);
+        lua_pushcfunction(L, &UserType::InstanceIndexDispatch);
         lua_setfield(L, metatable, "__index");
     }
 
-    static ValueType *GetFromRegistry(lua_State *L)
+    static UserType *GetFromRegistry(lua_State *L)
     {
-        lua_pushlightuserdata(L, (void *)typeid(ValueType).hash_code()); // key
+        lua_pushlightuserdata(L, (void *)typeid(UserType).hash_code()); // key
         lua_gettable(L, LUA_REGISTRYINDEX);
-        auto p = (ValueType *)lua_topointer(L, -1);
+        auto p = (UserType *)lua_topointer(L, -1);
         lua_pop(L, 1);
         return p;
     }
@@ -332,7 +332,7 @@ class ValueType
 public:
     // for lambda
     template <typename F>
-    ValueType &StaticMethod(const char *name, F f)
+    UserType &StaticMethod(const char *name, F f)
     {
         m_staticMethods._StaticMethod(name, f, &decltype(f)::operator());
         return *this;
@@ -340,7 +340,7 @@ public:
 
     // for lambda
     template <typename F>
-    ValueType &Getter(const char *name, F f)
+    UserType &Getter(const char *name, F f)
     {
         m_propertyMap._Getter(name, f, &decltype(f)::operator());
         return *this;
@@ -348,7 +348,7 @@ public:
 
     // for member field pointer
     template <typename C, typename R>
-    ValueType &Getter(const char *name, R C::*f)
+    UserType &Getter(const char *name, R C::*f)
     {
         m_propertyMap._Getter(name, f);
         return *this;
@@ -356,7 +356,7 @@ public:
 
     // for member function pointer
     template <typename C, typename R, typename... ARGS>
-    ValueType &Method(const char *name, R (C::*m)(ARGS...) const)
+    UserType &Method(const char *name, R (C::*m)(ARGS...) const)
     {
         m_methodMap.__Method(name, m, std::index_sequence_for<ARGS...>());
         return *this;
@@ -365,7 +365,7 @@ public:
     void NewType(lua_State *L)
     {
         // store this to registory
-        lua_pushlightuserdata(L, (void *)typeid(ValueType).hash_code()); // key
+        lua_pushlightuserdata(L, (void *)typeid(UserType).hash_code()); // key
         lua_pushlightuserdata(L, this);                                  // value
         lua_settable(L, LUA_REGISTRYINDEX);
 
