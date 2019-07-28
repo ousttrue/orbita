@@ -94,6 +94,43 @@ public:
     }
 };
 
+class StaticMethodMap
+{
+    // arguments is in stack
+    typedef std::function<int(lua_State *)> LuaStaticMethod;
+
+    std::unordered_map<std::string, LuaStaticMethod> m_typeMap;
+
+    template <typename F, typename C, typename R, typename... ARGS, std::size_t... IS>
+    void __StaticMethod(const char *name,
+                        const F &f,
+                        R (C::*m)(ARGS...) const,
+                        std::index_sequence<IS...>)
+    {
+        auto type = this;
+        auto func = [type, f](lua_State *L) {
+            auto args = perilune_totuple<ARGS...>(L, 1);
+            auto t = f(std::get<IS>(args)...);
+            perilune_pushvalue(L, t);
+            return 1;
+        };
+        m_typeMap.insert(std::make_pair(name, func));
+    }
+
+public:
+    template <typename F, typename C, typename R, typename... ARGS>
+    void _StaticMethod(const char *name, const F &f, R (C::*m)(ARGS...) const)
+    {
+        __StaticMethod(name, f, m,
+                       std::index_sequence_for<ARGS...>());
+    }
+
+    LuaStaticMethod Get(const char *key)
+    {
+        return m_typeMap.find(key)->second ;
+    }
+};
+
 template <typename T>
 class ValueType
 {
@@ -114,39 +151,14 @@ class ValueType
         return name.c_str();
     }
 
+    StaticMethodMap m_staticMethods;
 public:
+
 #pragma region Type
-    // arguments is in stack
-    typedef std::function<int(lua_State *)> LuaStaticMethod;
-
-    std::unordered_map<std::string, LuaStaticMethod> m_typeMap;
-    template <typename F, typename C, typename R, typename... ARGS, std::size_t... IS>
-    void __StaticMethod(const char *name,
-                        const F &f,
-                        R (C::*m)(ARGS...) const,
-                        std::index_sequence<IS...>)
-    {
-        auto type = this;
-        auto func = [type, f](lua_State *L) {
-            auto args = perilune_totuple<ARGS...>(L, 1);
-            auto t = f(std::get<IS>(args)...);
-            perilune_pushvalue(L, t);
-            return 1;
-        };
-        m_typeMap.insert(std::make_pair(name, func));
-    }
-
-    template <typename F, typename C, typename R, typename... ARGS>
-    void _StaticMethod(const char *name, const F &f, R (C::*m)(ARGS...) const)
-    {
-        __StaticMethod(name, f, m,
-                       std::index_sequence_for<ARGS...>());
-    }
-
     template <typename F>
     ValueType &StaticMethod(const char *name, F f)
     {
-        _StaticMethod(name, f, &decltype(f)::operator());
+        m_staticMethods._StaticMethod(name, f, &decltype(f)::operator());
         return *this;
     }
 
@@ -163,15 +175,15 @@ public:
         auto type = GetValueType(L);
         auto key = lua_tostring(L, lua_upvalueindex(2));
 
-        auto found = type->m_typeMap.find(key);
-        if (found == type->m_typeMap.end())
+        auto callback = type->m_staticMethods.Get(key);
+        if(callback)
         {
-            lua_pushfstring(L, "no %s method", key);
-            lua_error(L);
-            return 1;
+            return callback(L);
         }
 
-        return found->second(L);
+        lua_pushfstring(L, "no %s method", key);
+        lua_error(L);
+        return 1;
     }
 
     void LuaNewTypeMetaTable(lua_State *L)
