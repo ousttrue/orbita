@@ -27,7 +27,7 @@ ADD_LIBRARY(${SUB_NAME}
     # lua lib
     ${LUA_DIR}/lauxlib.c
     ${LUA_DIR}/lbaselib.c
-    # ${LUA_DIR}/lbitlib.c
+    ${LUA_DIR}/lbitlib.c
     ${LUA_DIR}/lcorolib.c
     ${LUA_DIR}/ldblib.c
     ${LUA_DIR}/liolib.c
