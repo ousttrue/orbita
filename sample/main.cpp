@@ -76,6 +76,7 @@ int main(int argc, char **argv)
         })
         .Getter("y", &Vector3::y)
         .Getter("z", &Vector3::z)
+        .Method("sqnorm", &Vector3::SqNorm)
         .PushType(lua.L);
     lua_setglobal(lua.L, "Vector3");
 

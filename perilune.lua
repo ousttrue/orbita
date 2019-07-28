@@ -11,4 +11,6 @@ print(v)
 print(v.x)
 print(v.y)
 print(v.z)
+local n = v.sqnorm()
+print(n)
 

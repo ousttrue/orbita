@@ -4,6 +4,7 @@
         "pushcclosure",
         "pushcfunction",
         "requiref",
+        "sqnorm",
         "totuple",
         "touserdata",
         "upvalue",
