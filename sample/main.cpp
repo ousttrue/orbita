@@ -69,15 +69,18 @@ int main(int argc, char **argv)
 
     perilune::ValueType<Vector3> vector3Type;
     vector3Type
+        // lambda
         .StaticMethod("Zero", []() { return Vector3(); })
         .StaticMethod("Vector3", [](float x, float y, float z) { return Vector3(x, y, z); })
         .Getter("x", [](const Vector3 &value) {
             return value.x;
         })
+        // member pointer
         .Getter("y", &Vector3::y)
         .Getter("z", &Vector3::z)
         .Method("sqnorm", &Vector3::SqNorm)
-        .PushType(lua.L);
+        // create and push lua stack
+        .NewType(lua.L);
     lua_setglobal(lua.L, "Vector3");
 
     if (!lua.DoFile(argv[1]))

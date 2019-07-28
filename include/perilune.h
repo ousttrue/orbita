@@ -97,9 +97,9 @@ public:
 class StaticMethodMap
 {
     // arguments is in stack
-    typedef std::function<int(lua_State *)> LuaStaticMethod;
+    typedef std::function<int(lua_State *)> StaticMethod;
 
-    std::unordered_map<std::string, LuaStaticMethod> m_typeMap;
+    std::unordered_map<std::string, StaticMethod> m_typeMap;
 
     template <typename F, typename C, typename R, typename... ARGS, std::size_t... IS>
     void __StaticMethod(const char *name,
@@ -125,11 +125,98 @@ public:
                        std::index_sequence_for<ARGS...>());
     }
 
-    LuaStaticMethod Get(const char *key)
+    StaticMethod Get(const char *key)
     {
-        return m_typeMap.find(key)->second ;
+        auto found = m_typeMap.find(key);
+        if (found == m_typeMap.end())
+        {
+            return StaticMethod();
+        }
+        return found->second;
     }
 };
+
+template <typename T>
+class PropertyMap
+{
+    typedef std::function<int(lua_State *)> PropertyMethod;
+    std::unordered_map<std::string, PropertyMethod> m_getterMap;
+
+public:
+    template <typename F, typename C, typename R>
+    void _Getter(const char *name, const F &f, R (C::*)(const T &value) const)
+    {
+        PropertyMethod func = [f](lua_State *L) {
+            auto value = UserData<T>::Get(L, 1);
+            R r = f(*value);
+
+            int result = perilune_pushvalue(L, r);
+            return result;
+        };
+        m_getterMap.insert(std::make_pair(name, func));
+    }
+
+    // for field
+    template <typename C, typename R>
+    void _Getter(const char *name, R C::*f)
+    {
+        // auto self = this;
+        PropertyMethod func = [f](lua_State *L) {
+            auto &value = *UserData<T>::Get(L, 1);
+            R r = value.*f;
+
+            int result = perilune_pushvalue(L, r);
+            return result;
+        };
+        m_getterMap.insert(std::make_pair(name, func));
+    }
+
+    PropertyMethod Get(const char *key)
+    {
+        auto found = m_getterMap.find(key);
+        if (found == m_getterMap.end())
+        {
+            return PropertyMethod();
+        }
+        return found->second;
+    }
+};
+
+template <typename T>
+class MethodMap
+{
+    typedef std::function<int(lua_State *)> LuaMethod;
+    std::unordered_map<std::string, LuaMethod> m_methodMap;
+    ;
+
+public:
+    template <typename C, typename R, typename... ARGS, std::size_t... IS>
+    void __Method(const char *name,
+                  R (C::*m)(ARGS...) const,
+                  std::index_sequence<IS...>)
+    {
+        // auto self = this;
+        LuaMethod func = [m](lua_State *L) {
+            auto value = UserData<T>::Get(L, lua_upvalueindex(1)); // from upvalue
+            auto args = perilune_totuple<ARGS...>(L, 1);
+
+            R r = (value->*m)(std::get<IS>(args)...);
+
+            return perilune_pushvalue(L, r);
+        };
+        m_methodMap.insert(std::make_pair(name, func));
+    }
+
+    LuaMethod Get(const char *key)
+    {
+        auto found = m_methodMap.find(key);
+        if (found == m_methodMap.end())
+        {
+            return LuaMethod();
+        }
+        return found->second;
+    }
+}; // namespace perilune
 
 template <typename T>
 class ValueType
@@ -141,26 +228,15 @@ class ValueType
 
     static const char *TypeMetatableName()
     {
-        static std::string name = std::string("Type ") + typeid(T).name();
-        return name.c_str();
+        return typeid(ValueType).name();
     }
 
     static const char *InstanceMetatableName()
     {
-        static std::string name = typeid(T).name();
-        return name.c_str();
+        return typeid(T).name();
     }
 
     StaticMethodMap m_staticMethods;
-public:
-
-#pragma region Type
-    template <typename F>
-    ValueType &StaticMethod(const char *name, F f)
-    {
-        m_staticMethods._StaticMethod(name, f, &decltype(f)::operator());
-        return *this;
-    }
 
     // stack 1:table(userdata), 2:key
     static int TypeIndexDispatch(lua_State *L)
@@ -172,11 +248,11 @@ public:
     // upvalue 1:table(userdata), 2:key
     static int TypeMethodDispatch(lua_State *L)
     {
-        auto type = GetValueType(L);
+        auto type = GetFromRegistry(L);
         auto key = lua_tostring(L, lua_upvalueindex(2));
 
         auto callback = type->m_staticMethods.Get(key);
-        if(callback)
+        if (callback)
         {
             return callback(L);
         }
@@ -186,112 +262,29 @@ public:
         return 1;
     }
 
-    void LuaNewTypeMetaTable(lua_State *L)
+    static void LuaNewTypeMetaTable(lua_State *L)
     {
         assert(luaL_newmetatable(L, TypeMetatableName()) == 1);
         int metatable = lua_gettop(L);
 
         lua_pushcfunction(L, &ValueType::TypeIndexDispatch);
         lua_setfield(L, metatable, "__index");
-
-        // store this registory
-        lua_pushlightuserdata(L, (void *)typeid(ValueType).hash_code()); // key
-        lua_pushlightuserdata(L, this);                                  // value
-        lua_settable(L, LUA_REGISTRYINDEX);
     }
 
-    void PushType(lua_State *L)
-    {
-        // set metatable to type userdata
-        LuaNewTypeMetaTable(L);
-        lua_pop(L, 1);
-
-        //
-        LuaNewInstanceMetaTable(L);
-        lua_pop(L, 1);
-
-        // type userdata
-        UserData<TypeUserData>::New(L, TypeUserData{}, TypeMetatableName());
-    }
-#pragma endregion
-
-#pragma region Value
-    typedef std::function<int(lua_State *, const T &value)> LuaMethod;
-    std::unordered_map<std::string, LuaMethod> m_getterMap;
-    std::unordered_map<std::string, LuaMethod> m_methodMap;
-    ;
-
-    template <typename F, typename C, typename R>
-    void _Getter(const char *name, const F &f, R (C::*)(const T &value) const)
-    {
-        LuaMethod func = [f](lua_State *L, const T &value) {
-            R r = f(value);
-
-            int result = perilune_pushvalue(L, r);
-            return result;
-        };
-        m_getterMap.insert(std::make_pair(name, func));
-    }
-
-    template <typename F>
-    ValueType &Getter(const char *name, F f)
-    {
-        _Getter(name, f, &decltype(f)::operator());
-        return *this;
-    }
-
-    // for field
-    template <typename C, typename R>
-    ValueType &Getter(const char *name, R C::*f)
-    {
-        // auto self = this;
-        LuaMethod func = [f](lua_State *L, const T &value) {
-            R r = value.*f;
-
-            int result = perilune_pushvalue(L, r);
-            return result;
-        };
-        m_getterMap.insert(std::make_pair(name, func));
-
-        return *this;
-    }
-
-    template <typename C, typename R, typename... ARGS, std::size_t... IS>
-    void __Method(const char *name,
-                  R (C::*m)(ARGS...) const,
-                  std::index_sequence<IS...>)
-    {
-        // auto self = this;
-        LuaMethod func = [m](lua_State *L, const T &value) {
-            auto args = perilune_totuple<ARGS...>(L, 1);
-
-            R r = (value.*m)(std::get<IS>(args)...);
-
-            return perilune_pushvalue(L, r);
-        };
-        m_methodMap.insert(std::make_pair(name, func));
-    }
-
-    template <typename C, typename R, typename... ARGS>
-    ValueType &Method(const char *name, R (C::*m)(ARGS...) const)
-    {
-        __Method(name, m, std::index_sequence_for<ARGS...>());
-        return *this;
-    }
+    PropertyMap<T> m_propertyMap;
+    MethodMap<T> m_methodMap;
 
     // stack 1:table(userdata), 2:key
     static int InstanceIndexDispatch(lua_State *L)
     {
-        auto type = GetValueType(L);
+        auto type = GetFromRegistry(L);
         auto key = lua_tostring(L, 2);
 
         {
-            auto found = type->m_getterMap.find(key);
-            if (found != type->m_getterMap.end())
+            auto property = type->m_propertyMap.Get(key);
+            if (property)
             {
-                // property
-                auto value = UserData<T>::Get(L, 1);
-                return found->second(L, *value);
+                return property(L);
             }
         }
 
@@ -302,16 +295,13 @@ public:
     // upvalue 1:table(userdata), 2:key
     static int InstanceMethodDispatch(lua_State *L)
     {
-        auto type = GetValueType(L);
+        auto type = GetFromRegistry(L);
         auto key = lua_tostring(L, lua_upvalueindex(2));
 
+        auto callback = type->m_methodMap.Get(key);
+        if (callback)
         {
-            auto found = type->m_methodMap.find(key);
-            if (found != type->m_methodMap.end())
-            {
-                auto value = UserData<T>::Get(L, lua_upvalueindex(1));
-                return found->second(L, *value);
-            }
+            return callback(L);
         }
 
         // error
@@ -330,8 +320,7 @@ public:
         lua_setfield(L, metatable, "__index");
     }
 
-    // from registry
-    static ValueType *GetValueType(lua_State *L)
+    static ValueType *GetFromRegistry(lua_State *L)
     {
         lua_pushlightuserdata(L, (void *)typeid(ValueType).hash_code()); // key
         lua_gettable(L, LUA_REGISTRYINDEX);
@@ -340,12 +329,63 @@ public:
         return p;
     }
 
+public:
+    // for lambda
+    template <typename F>
+    ValueType &StaticMethod(const char *name, F f)
+    {
+        m_staticMethods._StaticMethod(name, f, &decltype(f)::operator());
+        return *this;
+    }
+
+    // for lambda
+    template <typename F>
+    ValueType &Getter(const char *name, F f)
+    {
+        m_propertyMap._Getter(name, f, &decltype(f)::operator());
+        return *this;
+    }
+
+    // for member field pointer
+    template <typename C, typename R>
+    ValueType &Getter(const char *name, R C::*f)
+    {
+        m_propertyMap._Getter(name, f);
+        return *this;
+    }
+
+    // for member function pointer
+    template <typename C, typename R, typename... ARGS>
+    ValueType &Method(const char *name, R (C::*m)(ARGS...) const)
+    {
+        m_methodMap.__Method(name, m, std::index_sequence_for<ARGS...>());
+        return *this;
+    }
+
+    void NewType(lua_State *L)
+    {
+        // store this to registory
+        lua_pushlightuserdata(L, (void *)typeid(ValueType).hash_code()); // key
+        lua_pushlightuserdata(L, this);                                  // value
+        lua_settable(L, LUA_REGISTRYINDEX);
+
+        // create metatable for type userdata
+        LuaNewTypeMetaTable(L);
+        lua_pop(L, 1);
+
+        // create metatable for instance userdata
+        LuaNewInstanceMetaTable(L);
+        lua_pop(L, 1);
+
+        // push type userdata to stack
+        UserData<TypeUserData>::New(L, TypeUserData{}, TypeMetatableName());
+    }
+
     static int PushValue(lua_State *L, const T &value)
     {
         UserData<T>::New(L, value, InstanceMetatableName());
         return 1;
     }
-#pragma endregion
 };
 
 } // namespace perilune

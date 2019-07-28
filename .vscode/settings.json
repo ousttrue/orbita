@@ -1,10 +1,13 @@
 {
     "cSpell.words": [
         "dofile",
+        "metatable",
         "pushcclosure",
         "pushcfunction",
         "requiref",
+        "setglobal",
         "sqnorm",
+        "struct",
         "topointer",
         "totuple",
         "touserdata",
