@@ -28,6 +28,12 @@ static int perilune_pushvalue(lua_State *L, float n)
     lua_pushnumber(L, n);
     return 1;
 }
+
+template <typename T>
+static int perilune_pushvalue(lua_State *L, const T &t)
+{
+    return ValueType<T>::PushValue(L, t);
+}
 #pragma endregion
 
 #pragma region get tuple
@@ -125,7 +131,7 @@ public:
         auto func = [type, f](lua_State *L) {
             auto args = perilune_totuple<ARGS...>(L, 1);
             auto t = f(std::get<IS>(args)...);
-            PushValue(L, t, type);
+            perilune_pushvalue(L, t);
             return 1;
         };
         m_typeMap.insert(std::make_pair(name, func));
@@ -176,6 +182,11 @@ public:
 
         lua_pushcfunction(L, &ValueType::TypeIndexDispatch);
         lua_setfield(L, metatable, "__index");
+
+        // store this registory
+        lua_pushlightuserdata(L, (void *)typeid(ValueType).hash_code()); // key
+        lua_pushlightuserdata(L, this);                                  // value
+        lua_settable(L, LUA_REGISTRYINDEX);
     }
 
     void PushType(lua_State *L)
@@ -211,7 +222,7 @@ public:
         LuaMethod func = [f](lua_State *L, ValueWithType *self) {
             R r = f(self->Value);
 
-            int result = PushValue(L, r, self->Type);
+            int result = perilune_pushvalue(L, r);
             return result;
         };
         m_getterMap.insert(std::make_pair(name, func));
@@ -232,7 +243,7 @@ public:
         LuaMethod func = [f](lua_State *L, ValueWithType *self) {
             R r = self->Value.*f;
 
-            int result = PushValue(L, r, self->Type);
+            int result = perilune_pushvalue(L, r);
             return result;
         };
         m_getterMap.insert(std::make_pair(name, func));
@@ -251,7 +262,7 @@ public:
 
             R r = (self->Value.*m)(std::get<IS>(args)...);
 
-            return self->Type->PushValue(L, r, self->Type);
+            return perilune_pushvalue(L, r);
         };
         m_methodMap.insert(std::make_pair(name, func));
     }
@@ -315,28 +326,19 @@ public:
         lua_setfield(L, metatable, "__index");
     }
 
-    template <typename R>
-    static int PushValue(lua_State *L, R value, const ValueType *type)
+    static int PushValue(lua_State *L, const T &value)
     {
-        return perilune_pushvalue(L, value);
-    }
+        lua_pushlightuserdata(L, (void *)typeid(ValueType).hash_code()); // key
+        lua_gettable(L, LUA_REGISTRYINDEX);
+        auto type = (ValueType *)lua_topointer(L, -1);
+        auto self = ValueWithType
+        {
+            .Value = value,
+            .Type = type,
+        };
 
-    static int PushValue(lua_State *L, const T &value, const ValueType *type)
-    {
-        return PushValue(L, ValueWithType{
-                                .Value = value,
-                                .Type = type,
-                            });
-    }
-
-    /// <summary>
-    /// construct instance value(push T to stack)
-    /// </summary>
-    static int PushValue(lua_State *L, const ValueWithType &self)
-    {
         // type userdata
-        auto p = UserData<ValueWithType>::New(L, self, InstanceMetatableName());
-
+        UserData<ValueWithType>::New(L, self, InstanceMetatableName());
         return 1;
     }
 #pragma endregion
