@@ -73,14 +73,20 @@ class ValueType
         const ValueType *Type;
     };
 
-public:
-#pragma region Type
-    std::string GetTypeName() const
+    static const char *TypeMetatableName()
     {
         static std::string name = std::string("Type ") + typeid(T).name();
-        return name;
+        return name.c_str();
     }
 
+    static const char *InstanceMetatableName()
+    {
+        static std::string name = typeid(T).name();
+        return name.c_str();
+    }
+
+public:
+#pragma region Type
     // arguments is in stack
     typedef std::function<int(lua_State *)> LuaStaticMethod;
 
@@ -151,8 +157,7 @@ public:
 
     void LuaNewTypeMetaTable(lua_State *L)
     {
-        auto name = GetTypeName();
-        assert(luaL_newmetatable(L, name.c_str()) == 1);
+        assert(luaL_newmetatable(L, TypeMetatableName()) == 1);
         int metatable = lua_gettop(L);
 
         lua_pushcfunction(L, &ValueType::TypeIndexDispatch);
@@ -176,11 +181,6 @@ public:
 #pragma endregion
 
 #pragma region Value
-    static std::string GetInstanceName()
-    {
-        static std::string name = typeid(T).name();
-        return name;
-    }
     // static int InstanceStackToUpvalue(lua_State *L)
     // {
     //     lua_pushcclosure(L, &ValueType::InstanceDispatch, 2);
@@ -299,8 +299,7 @@ public:
 
     void LuaNewInstanceMetaTable(lua_State *L)
     {
-        auto name = GetInstanceName();
-        luaL_newmetatable(L, name.c_str());
+        luaL_newmetatable(L, InstanceMetatableName());
 
         // first time
         int metatable = lua_gettop(L);
@@ -332,7 +331,7 @@ public:
         *p = self;
 
         // set metatable to type userdata
-        luaL_getmetatable(L, GetInstanceName().c_str());
+        luaL_getmetatable(L, InstanceMetatableName());
         lua_setmetatable(L, -2);
 
         return 1;
