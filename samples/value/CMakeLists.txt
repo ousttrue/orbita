@@ -1,4 +1,4 @@
-SET(SUB_NAME sample)
+SET(SUB_NAME sample_value)
 SET(DEPENDENCIES_DIR ${CMAKE_CURRENT_LIST_DIR}/../dependencies)
 SET(LUA_DIR ${DEPENDENCIES_DIR}/lua)
 
@@ -9,7 +9,7 @@ TARGET_COMPILE_DEFINITIONS(${SUB_NAME} PUBLIC
     )
 TARGET_INCLUDE_DIRECTORIES(${SUB_NAME} PUBLIC
     ${LUA_DIR}
-    ../include
+    ../../include
     )
 TARGET_LINK_LIBRARIES(${SUB_NAME}
     lualib

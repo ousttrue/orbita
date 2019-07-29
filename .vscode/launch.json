@@ -21,7 +21,7 @@
             "name": "perilune",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/sample/sample.exe",
+            "program": "${workspaceFolder}/build/samples/value/sample_value.exe",
             "args": [
                 "perilune.lua"
             ],
