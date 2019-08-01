@@ -90,6 +90,11 @@ static void perilune_getvalue(lua_State *L, int index, float *value)
     *value = (float)luaL_checknumber(L, index);
 }
 
+static void perilune_getvalue(lua_State *L, int index, void **value)
+{
+    *value = const_cast<void *>(lua_topointer(L, index));
+}
+
 static void perilune_getvalue(lua_State *L, int index, const std::wstring *value)
 {
     auto str = luaL_checkstring(L, index);
@@ -444,7 +449,7 @@ public:
     }
     ~UserType()
     {
-        std::cerr << "~UserType" << std::endl;
+        std::cerr << "~" << TypeMetatableName() << std::endl;
     }
 
     // for lambda

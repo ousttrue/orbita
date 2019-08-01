@@ -1,8 +1,8 @@
 #include <perilune.h>
 #include <iostream>
 #include "win32_window.h"
+#include "dx11_context.h"
 #include <plog/Log.h>
-
 
 struct Lua
 {
@@ -36,7 +36,6 @@ struct Lua
     }
 };
 
-
 int main(int argc, char **argv)
 {
     if (argc == 1)
@@ -58,8 +57,17 @@ int main(int argc, char **argv)
         })
         .Method("create", &Win32Window::Create)
         .Method("is_running", &Win32Window::IsRunning)
+        .Method("get_state", &Win32Window::GetState)
         .LuaNewType(lua.L);
-    lua_setglobal(lua.L, "window");
+    lua_setglobal(lua.L, "Window");
+
+    static perilune::UserType<DX11Context *> dx11;
+    dx11
+        .StaticMethod("new", []() { return new DX11Context; })
+        .Destructor([](DX11Context *p) { delete p; })
+        .Method("create", &DX11Context::Create)
+        .LuaNewType(lua.L);
+    lua_setglobal(lua.L, "Dx11");
 
     if (!lua.DoFile(argv[1]))
     {

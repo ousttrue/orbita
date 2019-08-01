@@ -1,9 +1,17 @@
 
-local window = window.new()
-print(window)
-
+local window = Window.new()
 local hwnd = window.create(640, 480, "pointer");
-print(hwnd)
+if not hwnd then
+    print("fail to Window.create")
+    return
+end
+
+local dx11 = Dx11.new()
+local device = dx11.create(hwnd)
+if not device then
+    print("fail to Dx11.create")
+    return
+end
 
 while window.is_running() do
 

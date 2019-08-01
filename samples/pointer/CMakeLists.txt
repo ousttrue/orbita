@@ -19,5 +19,6 @@ TARGET_INCLUDE_DIRECTORIES(${SUB_NAME} PUBLIC
     )
 TARGET_LINK_LIBRARIES(${SUB_NAME}
     winmm
+    d3d11
     lualib
     )
