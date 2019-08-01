@@ -10,10 +10,14 @@ header only lua binding
 * [ ] operator
 * [ ] indexer
 * [ ] generic typed array
-* [ ] PointerType
+* [x] PointerType
 * [ ] metatable use hash
+* [x] return unknown pointer type to lightuesrdata
+* [x] return unknown value type to error
 
 ## usage
+
+### value type
 
 ```c++
 struct Vector3
@@ -40,7 +44,7 @@ struct Vector3
 ```
 
 ```c++
-    perilune::ValueType<Vector3> vector3Type;
+    static perilune::ValueType<Vector3> vector3Type;
     vector3Type
         // lambda
         .StaticMethod("Zero", []() { return Vector3(); })
@@ -53,7 +57,7 @@ struct Vector3
         .Getter("z", &Vector3::z)
         .Method("sqnorm", &Vector3::SqNorm)
         // create and push lua stack
-        .NewType(lua.L);
+        .LuaNewType(lua.L);
     lua_setglobal(lua.L, "Vector3");
 ```
 
@@ -69,4 +73,23 @@ print(v.y)
 print(v.z)
 local n = v.sqnorm()
 print(n)
+```
+
+### pointer type
+
+template specialized.
+
+```cpp
+    static perilune::UserType<Win32Window *> windowType;
+    windowType
+        .StaticMethod("new", []() {
+            return new Win32Window;
+        })
+        .Destructor([](Win32Window *p) {
+            std::cerr << "destruct: " << p << std::endl;
+            delete p;
+        })
+        .Method("create", &Win32Window::Create)
+        .Method("is_running", &Win32Window::IsRunning)
+        .LuaNewType(lua.L);
 ```
