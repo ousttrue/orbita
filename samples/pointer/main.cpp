@@ -66,6 +66,8 @@ int main(int argc, char **argv)
         .StaticMethod("new", []() { return new DX11Context; })
         .Destructor([](DX11Context *p) { delete p; })
         .Method("create", &DX11Context::Create)
+        .Method("new_frame", &DX11Context::NewFrame)
+        // .Method("present", &DX11Context::Present)
         .LuaNewType(lua.L);
     lua_setglobal(lua.L, "Dx11");
 
