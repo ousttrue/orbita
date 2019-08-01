@@ -136,6 +136,10 @@ void *DX11Context::Create(void *hwnd)
 
 void *DX11Context::NewFrame(const WindowState *state)
 {
+    if(!state)
+    {
+        return nullptr;
+    }
     return m_impl->NewFrame(state->Width, state->Height);
 }
 

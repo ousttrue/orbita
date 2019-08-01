@@ -15,6 +15,11 @@ end
 
 while window.is_running() do
 
+    local state = window.get_state()
+
+    local context = dx11.new_frame(state)
     -- do something
+
+    dx11.present()
 
 end
