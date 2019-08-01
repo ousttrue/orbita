@@ -43,9 +43,9 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    perilune::UserType<Win32Window *> windowType;
-
     Lua lua;
+
+    static perilune::UserType<Win32Window *> windowType;
     windowType
         .StaticMethod("new", []() {
             return new Win32Window;
@@ -54,7 +54,7 @@ int main(int argc, char **argv)
             std::cerr << "destruct: " << p << std::endl;
             delete p;
         })
-        // .StaticMethod("create", &Win32Window::Create)
+        .Method("create", &Win32Window::Create)
         .NewType(lua.L);
     lua_setglobal(lua.L, "window");
 

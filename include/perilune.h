@@ -1,5 +1,16 @@
 #pragma once
 
+#include <Windows.h>
+#include <string>
+
+std::wstring utf8_to_wstring(const std::string &src)
+{
+    auto required = MultiByteToWideChar(CP_UTF8, 0, src.data(), (int)src.size(), nullptr, 0);
+    std::wstring dst(required, 0);
+    MultiByteToWideChar(CP_UTF8, 0, src.data(), (int)src.size(), dst.data(), required);
+    return dst;
+}
+
 extern "C"
 {
 #include <lua.h>
@@ -12,6 +23,7 @@ extern "C"
 #include <unordered_map>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <assert.h>
 
 namespace perilune
@@ -19,16 +31,26 @@ namespace perilune
 
 // normal type
 template <typename T>
-struct Trait
+struct Traits
 {
     using Type = T;
+
+    static Type *GetThis(T *t)
+    {
+        return t;
+    }
 };
 
 // for pointer type
 template <typename T>
-struct Trait<T *>
+struct Traits<T *>
 {
     using Type = T;
+
+    static Type *GetThis(T **t)
+    {
+        return *t;
+    }
 };
 
 #pragma region push
@@ -47,19 +69,26 @@ static int perilune_pushvalue(lua_State *L, float n)
 template <typename T>
 static int perilune_pushvalue(lua_State *L, const T &t)
 {
-    return UserType<T>::PushValue(L, t);
+    return UserTypePush<T>::PushValue(L, t);
 }
 #pragma endregion
 
 #pragma region get tuple
-void perilune_getvalue(lua_State *L, int index, int *value)
+static void perilune_getvalue(lua_State *L, int index, int *value)
 {
     *value = (int)luaL_checkinteger(L, index);
 }
 
-void perilune_getvalue(lua_State *L, int index, float *value)
+static void perilune_getvalue(lua_State *L, int index, float *value)
 {
     *value = (float)luaL_checknumber(L, index);
+}
+
+static void perilune_getvalue(lua_State *L, int index, const std::wstring *value)
+{
+    auto str = luaL_checkstring(L, index);
+    // UNICODE
+    *const_cast<std::wstring *>(value) = utf8_to_wstring(str);
 }
 
 std::tuple<> perilune_totuple(lua_State *L, int index, std::tuple<> *)
@@ -90,6 +119,8 @@ class UserData
 {
     UserData() = delete;
 
+    using Type = typename Traits<T>::Type;
+
 public:
     static T *New(lua_State *L, const T &value, const char *metatableName)
     {
@@ -97,15 +128,26 @@ public:
         *p = value;
 
         // set metatable to type userdata
-        luaL_getmetatable(L, metatableName);
+        auto pushedType = luaL_getmetatable(L, metatableName);
+        if (pushedType == 0) // nil
+        {
+            return nullptr;
+        }
+
         lua_setmetatable(L, -2);
 
         return p;
     }
 
-    static T *Get(lua_State *L, int index)
+    static T *GetData(lua_State *L, int index)
     {
         return static_cast<T *>(lua_touserdata(L, index));
+    }
+
+    static Type *GetThis(lua_State *L, int index)
+    {
+        auto data = GetData(L, index);
+        return Traits<T>::GetThis(data);
     }
 };
 
@@ -161,7 +203,7 @@ public:
     void _Getter(const char *name, const F &f, R (C::*)(const T &value) const)
     {
         PropertyMethod func = [f](lua_State *L) {
-            auto value = UserData<T>::Get(L, 1);
+            auto value = UserData<T>::GetData(L, 1);
             R r = f(*value);
 
             int result = perilune_pushvalue(L, r);
@@ -176,8 +218,8 @@ public:
     {
         // auto self = this;
         PropertyMethod func = [f](lua_State *L) {
-            auto &value = *UserData<T>::Get(L, 1);
-            R r = value.*f;
+            auto value = UserData<T>::GetThis(L, 1);
+            R r = value->*f;
 
             int result = perilune_pushvalue(L, r);
             return result;
@@ -203,15 +245,34 @@ class MethodMap
     std::unordered_map<std::string, LuaMethod> m_methodMap;
     ;
 
+    using Traits = typename Traits<T>;
+
 public:
-    template <typename C, typename R, typename... ARGS, std::size_t... IS>
-    void __Method(const char *name,
-                  R (C::*m)(ARGS...) const,
-                  std::index_sequence<IS...>)
+    template <typename R, typename C, typename... ARGS, std::size_t... IS>
+    void Method(const char *name,
+                R (C::*m)(ARGS...),
+                std::index_sequence<IS...>)
     {
         // auto self = this;
         LuaMethod func = [m](lua_State *L) {
-            auto value = UserData<T>::Get(L, lua_upvalueindex(1)); // from upvalue
+            auto value = UserData<T>::GetThis(L, lua_upvalueindex(1)); // from upvalue
+            auto args = perilune_totuple<std::remove_reference<ARGS>::type...>(L, 1);
+
+            R r = (value->*m)(std::get<IS>(args)...);
+
+            return perilune_pushvalue(L, r);
+        };
+        m_methodMap.insert(std::make_pair(name, func));
+    }
+
+    template <typename R, typename C, typename... ARGS, std::size_t... IS>
+    void ConstMethod(const char *name,
+                     R (C::*m)(ARGS...) const,
+                     std::index_sequence<IS...>)
+    {
+        // auto self = this;
+        LuaMethod func = [m](lua_State *L) {
+            auto value = UserData<T>::GetThis(L, lua_upvalueindex(1)); // from upvalue
             auto args = perilune_totuple<ARGS...>(L, 1);
 
             R r = (value->*m)(std::get<IS>(args)...);
@@ -239,20 +300,12 @@ class UserType
     UserType(const UserType &) = delete;
     UserType &operator=(const UserType &) = delete;
 
+    using Type = typename Traits<T>::Type;
+
     // userdata dummy for Type
     struct TypeUserData
     {
     };
-
-    static const char *TypeMetatableName()
-    {
-        return typeid(UserType).name();
-    }
-
-    static const char *InstanceMetatableName()
-    {
-        return typeid(T).name();
-    }
 
     StaticMethodMap m_staticMethods;
 
@@ -301,7 +354,7 @@ class UserType
         auto self = UserType<T>::GetFromRegistry(L);
         if (self->m_destructor)
         {
-            auto value = UserData<T>::Get(L, -1);
+            auto value = UserData<T>::GetData(L, -1);
             self->m_destructor(*value);
         }
         return 0;
@@ -369,6 +422,16 @@ class UserType
     }
 
 public:
+    static const char *TypeMetatableName()
+    {
+        return typeid(UserType).name();
+    }
+
+    static const char *InstanceMetatableName()
+    {
+        return typeid(T).name();
+    }
+
     UserType()
     {
     }
@@ -416,10 +479,17 @@ public:
     }
 
     // for member function pointer
-    template <typename C, typename R, typename... ARGS>
+    template <typename R, typename C, typename... ARGS>
+    UserType &Method(const char *name, R (C::*m)(ARGS...))
+    {
+        m_methodMap.Method(name, m, std::index_sequence_for<ARGS...>());
+        return *this;
+    }
+
+    template <typename R, typename C, typename... ARGS>
     UserType &Method(const char *name, R (C::*m)(ARGS...) const)
     {
-        m_methodMap.__Method(name, m, std::index_sequence_for<ARGS...>());
+        m_methodMap.ConstMethod(name, m, std::index_sequence_for<ARGS...>());
         return *this;
     }
 
@@ -441,11 +511,46 @@ public:
         // push type userdata to stack
         UserData<TypeUserData>::New(L, TypeUserData{}, TypeMetatableName());
     }
+};
 
+template <typename T>
+struct UserTypePush
+{
     static int PushValue(lua_State *L, const T &value)
     {
-        UserData<T>::New(L, value, InstanceMetatableName());
-        return 1;
+        auto name = UserType<T>::InstanceMetatableName();
+        if (!UserData<T>::New(L, value, name))
+        {
+            // error
+            lua_pushfstring(L, "unknown type %s", name);
+            lua_error(L);
+            return 1;
+        }
+        else
+        {
+            // success
+            return 1;
+        }
+    }
+};
+
+template <typename T>
+struct UserTypePush<T *>
+{
+    static int PushValue(lua_State *L, T *value)
+    {
+        auto name = UserType<T *>::InstanceMetatableName();
+        if (!UserData<T *>::New(L, value, name))
+        {
+            // unknown
+            lua_pushlightuserdata(L, value);
+            return 1;
+        }
+        else
+        {
+            // success
+            return 1;
+        }
     }
 };
 
