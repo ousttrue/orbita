@@ -58,7 +58,7 @@ int main(int argc, char **argv)
         })
         .Method("create", &Win32Window::Create)
         .Method("is_running", &Win32Window::IsRunning)
-        .NewType(lua.L);
+        .LuaNewType(lua.L);
     lua_setglobal(lua.L, "window");
 
     if (!lua.DoFile(argv[1]))

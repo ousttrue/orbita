@@ -500,7 +500,7 @@ public:
         return *this;
     }
 
-    void NewType(lua_State *L)
+    void LuaNewType(lua_State *L)
     {
         // store this to registory
         lua_pushlightuserdata(L, (void *)typeid(UserType).hash_code()); // key

@@ -80,7 +80,7 @@ int main(int argc, char **argv)
         .Getter("z", &Vector3::z)
         .Method("sqnorm", &Vector3::SqNorm)
         // create and push lua stack
-        .NewType(lua.L);
+        .LuaNewType(lua.L);
     lua_setglobal(lua.L, "Vector3");
 
     if (!lua.DoFile(argv[1]))
