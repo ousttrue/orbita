@@ -3,6 +3,7 @@
 #include "win32_window.h"
 #include <plog/Log.h>
 
+
 struct Lua
 {
     lua_State *L;
@@ -35,6 +36,7 @@ struct Lua
     }
 };
 
+
 int main(int argc, char **argv)
 {
     if (argc == 1)
@@ -55,6 +57,7 @@ int main(int argc, char **argv)
             delete p;
         })
         .Method("create", &Win32Window::Create)
+        .Method("is_running", &Win32Window::IsRunning)
         .NewType(lua.L);
     lua_setglobal(lua.L, "window");
 

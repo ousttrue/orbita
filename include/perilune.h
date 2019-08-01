@@ -54,6 +54,12 @@ struct Traits<T *>
 };
 
 #pragma region push
+static int perilune_pushvalue(lua_State *L, bool b)
+{
+    lua_pushboolean(L, b);
+    return 1;
+}
+
 static int perilune_pushvalue(lua_State *L, int n)
 {
     lua_pushinteger(L, n);
