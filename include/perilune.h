@@ -7,6 +7,7 @@ extern "C"
 #include <lauxlib.h>
 }
 
+#include <iostream>
 #include <functional>
 #include <unordered_map>
 #include <string>
@@ -15,6 +16,20 @@ extern "C"
 
 namespace perilune
 {
+
+// normal type
+template <typename T>
+struct Trait
+{
+    using Type = T;
+};
+
+// for pointer type
+template <typename T>
+struct Trait<T *>
+{
+    using Type = T;
+};
 
 #pragma region push
 static int perilune_pushvalue(lua_State *L, int n)
@@ -96,10 +111,9 @@ public:
 
 class StaticMethodMap
 {
-    // arguments is in stack
     typedef std::function<int(lua_State *)> StaticMethod;
 
-    std::unordered_map<std::string, StaticMethod> m_typeMap;
+    std::unordered_map<std::string, StaticMethod> m_methodMap;
 
     template <typename F, typename C, typename R, typename... ARGS, std::size_t... IS>
     void __StaticMethod(const char *name,
@@ -114,7 +128,7 @@ class StaticMethodMap
             perilune_pushvalue(L, t);
             return 1;
         };
-        m_typeMap.insert(std::make_pair(name, func));
+        m_methodMap.insert(std::make_pair(name, func));
     }
 
 public:
@@ -127,8 +141,8 @@ public:
 
     StaticMethod Get(const char *key)
     {
-        auto found = m_typeMap.find(key);
-        if (found == m_typeMap.end())
+        auto found = m_methodMap.find(key);
+        if (found == m_methodMap.end())
         {
             return StaticMethod();
         }
@@ -221,6 +235,10 @@ public:
 template <typename T>
 class UserType
 {
+    // nocopy
+    UserType(const UserType &) = delete;
+    UserType &operator=(const UserType &) = delete;
+
     // userdata dummy for Type
     struct TypeUserData
     {
@@ -237,6 +255,8 @@ class UserType
     }
 
     StaticMethodMap m_staticMethods;
+
+    std::function<void(T &)> m_destructor;
 
     // stack 1:table(userdata), 2:key
     static int TypeIndexDispatch(lua_State *L)
@@ -273,6 +293,19 @@ class UserType
 
     PropertyMap<T> m_propertyMap;
     MethodMap<T> m_methodMap;
+
+    static int InstanceGCDispatch(lua_State *L)
+    {
+        std::cerr << "__GC" << std::endl;
+
+        auto self = UserType<T>::GetFromRegistry(L);
+        if (self->m_destructor)
+        {
+            auto value = UserData<T>::Get(L, -1);
+            self->m_destructor(*value);
+        }
+        return 0;
+    }
 
     // stack 1:table(userdata), 2:key
     static int InstanceIndexDispatch(lua_State *L)
@@ -318,6 +351,12 @@ class UserType
         int metatable = lua_gettop(L);
         lua_pushcfunction(L, &UserType::InstanceIndexDispatch);
         lua_setfield(L, metatable, "__index");
+
+        if (m_destructor)
+        {
+            lua_pushcfunction(L, &UserType::InstanceGCDispatch);
+            lua_setfield(L, metatable, "__gc");
+        }
     }
 
     static UserType *GetFromRegistry(lua_State *L)
@@ -330,11 +369,33 @@ class UserType
     }
 
 public:
+    UserType()
+    {
+    }
+    ~UserType()
+    {
+        std::cerr << "~UserType" << std::endl;
+    }
+
     // for lambda
     template <typename F>
     UserType &StaticMethod(const char *name, F f)
     {
         m_staticMethods._StaticMethod(name, f, &decltype(f)::operator());
+        return *this;
+    }
+
+    UserType &Destructor(const std::function<void(T &)> &destructor)
+    {
+        if (m_destructor)
+        {
+            throw std::exception("destructor already exits");
+        }
+        m_destructor = destructor;
+        if (m_destructor)
+        {
+            std::cerr << "destructor" << std::endl;
+        }
         return *this;
     }
 
@@ -366,7 +427,7 @@ public:
     {
         // store this to registory
         lua_pushlightuserdata(L, (void *)typeid(UserType).hash_code()); // key
-        lua_pushlightuserdata(L, this);                                  // value
+        lua_pushlightuserdata(L, this);                                 // value
         lua_settable(L, LUA_REGISTRYINDEX);
 
         // create metatable for type userdata

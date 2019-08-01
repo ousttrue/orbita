@@ -1,6 +1,7 @@
 #include <perilune.h>
 #include <iostream>
 #include "win32_window.h"
+#include <plog/Log.h>
 
 struct Lua
 {
@@ -42,11 +43,18 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    Lua lua;
-
     perilune::UserType<Win32Window *> windowType;
+
+    Lua lua;
     windowType
-        // .Method("create", &Win32Window::Create)
+        .StaticMethod("new", []() {
+            return new Win32Window;
+        })
+        .Destructor([](Win32Window *p) {
+            std::cerr << "destruct: " << p << std::endl;
+            delete p;
+        })
+        // .StaticMethod("create", &Win32Window::Create)
         .NewType(lua.L);
     lua_setglobal(lua.L, "window");
 
