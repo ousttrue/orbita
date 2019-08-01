@@ -18,12 +18,25 @@
             "externalConsole": false
         },
         {
-            "name": "perilune",
+            "name": "sample value",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/samples/value/sample_value.exe",
             "args": [
-                "perilune.lua"
+                "${workspaceFolder}/samples/value/value.lua"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false
+        },
+        {
+            "name": "sample pointer",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/samples/pointer/sample_pointer.exe",
+            "args": [
+                "${workspaceFolder}/samples/pointer/pointer.lua"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
