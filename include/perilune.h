@@ -131,6 +131,7 @@ public:
     static T *New(lua_State *L, const T &value, const char *metatableName)
     {
         auto p = (T *)lua_newuserdata(L, sizeof(T));
+        memset(p, 0, sizeof(T));
         *p = value;
 
         // set metatable to type userdata
