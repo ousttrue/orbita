@@ -32,7 +32,7 @@ namespace perilune
 namespace internal
 {
 
-template<typename T>
+template <typename T>
 struct MetatableName
 {
     static const char *TypeName()
@@ -56,6 +56,12 @@ struct Traits
     {
         return t;
     }
+
+    static Type *GetSelf(lua_State *L, int index)
+    {
+        auto p = (T *)lua_topointer(L, index);
+        return p;
+    }
 };
 
 // for pointer type
@@ -67,6 +73,12 @@ struct Traits<T *>
     static Type *GetThis(T **t)
     {
         return *t;
+    }
+
+    static Type *GetSelf(lua_State *L, int index)
+    {
+        auto p = (T **)lua_topointer(L, index);
+        return *p;
     }
 };
 
@@ -400,15 +412,15 @@ public:
 template <typename T>
 class PropertyMap
 {
-    typedef std::function<int(lua_State *)> PropertyMethod;
+    typedef std::function<int(lua_State *, T *)> PropertyMethod;
     std::unordered_map<std::string, PropertyMethod> m_getterMap;
 
 public:
     template <typename F, typename C, typename R>
     void SetLambdaGetter(const char *name, const F &f, R (C::*)(const T &value) const)
     {
-        PropertyMethod func = [f](lua_State *L) {
-            auto value = internal::UserData<T>::GetData(L, 1);
+        PropertyMethod func = [f](lua_State *L, T *value) {
+            // auto value = internal::UserData<T>::GetData(L, 1);
             R r = f(*value);
 
             int result = perilune_pushvalue(L, r);
@@ -422,8 +434,8 @@ public:
     void SetFieldGetter(const char *name, R C::*f)
     {
         // auto self = this;
-        PropertyMethod func = [f](lua_State *L) {
-            auto value = internal::UserData<T>::GetThis(L, 1);
+        PropertyMethod func = [f](lua_State *L, T *value) {
+            // auto value = internal::UserData<T>::GetThis(L, 1);
             R r = value->*f;
 
             int result = perilune_pushvalue(L, r);
@@ -561,13 +573,14 @@ class UserType
     static int InstanceIndexDispatch(lua_State *L)
     {
         auto type = GetFromRegistry(L);
+        auto self = internal::Traits<T>::GetSelf(L, 1);
         auto key = lua_tostring(L, 2);
 
         {
             auto property = type->m_propertyMap.Get(key);
             if (property)
             {
-                return property(L);
+                return property(L, self);
             }
         }
 
@@ -619,7 +632,6 @@ class UserType
     }
 
 public:
-
     UserType()
     {
     }
