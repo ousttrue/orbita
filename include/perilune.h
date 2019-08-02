@@ -32,6 +32,20 @@ namespace perilune
 namespace internal
 {
 
+template<typename T>
+struct MetatableName
+{
+    static const char *TypeName()
+    {
+        return typeid(MetatableName).name();
+    }
+
+    static const char *InstanceName()
+    {
+        return typeid(T).name();
+    }
+};
+
 // normal type
 template <typename T>
 struct Traits
@@ -115,7 +129,7 @@ struct UserTypePush
 {
     static int PushValue(lua_State *L, const T &value)
     {
-        auto name = UserType<T>::InstanceMetatableName();
+        auto name = MetatableName<T>::InstanceName();
         if (!UserData<T>::New(L, value, name))
         {
             // error
@@ -136,7 +150,7 @@ struct UserTypePush<T *>
 {
     static int PushValue(lua_State *L, T *value)
     {
-        auto name = UserType<T *>::InstanceMetatableName();
+        auto name = MetatableName<T *>::InstanceName();
         if (!UserData<T *>::New(L, value, name))
         {
             // unknown
@@ -214,7 +228,7 @@ struct ConstApplyer<R &, T, C, ARGS...>
     static int Apply(lua_State *L, typename Traits<T>::Type *value, R &(C::*m)(ARGS...) const, ARGS... args)
     {
         auto r = &(value->*m)(args...);
-        auto name = UserType<R>::InstanceMetatableName();
+        auto name = MetatableName<R>::InstanceName();
         if (!UserData<R>::New(L, *r, name))
         {
             // unknown
@@ -391,7 +405,7 @@ class PropertyMap
 
 public:
     template <typename F, typename C, typename R>
-    void _Getter(const char *name, const F &f, R (C::*)(const T &value) const)
+    void SetLambdaGetter(const char *name, const F &f, R (C::*)(const T &value) const)
     {
         PropertyMethod func = [f](lua_State *L) {
             auto value = internal::UserData<T>::GetData(L, 1);
@@ -405,7 +419,7 @@ public:
 
     // for field
     template <typename C, typename R>
-    void _Getter(const char *name, R C::*f)
+    void SetFieldGetter(const char *name, R C::*f)
     {
         // auto self = this;
         PropertyMethod func = [f](lua_State *L) {
@@ -520,14 +534,14 @@ class UserType
 
     static void LuaNewTypeMetaTable(lua_State *L)
     {
-        assert(luaL_newmetatable(L, TypeMetatableName()) == 1);
+        assert(luaL_newmetatable(L, internal::MetatableName<T>::TypeName()) == 1);
         int metatable = lua_gettop(L);
 
         lua_pushcfunction(L, &UserType::TypeIndexDispatch);
         lua_setfield(L, metatable, "__index");
     }
 
-    PropertyMap<T> m_propertyMap;
+    PropertyMap<Type> m_propertyMap;
     MethodMap<T> m_methodMap;
 
     static int InstanceGCDispatch(lua_State *L)
@@ -581,7 +595,7 @@ class UserType
 
     void LuaNewInstanceMetaTable(lua_State *L)
     {
-        luaL_newmetatable(L, InstanceMetatableName());
+        luaL_newmetatable(L, internal::MetatableName<T>::InstanceName());
 
         // first time
         int metatable = lua_gettop(L);
@@ -605,22 +619,13 @@ class UserType
     }
 
 public:
-    static const char *TypeMetatableName()
-    {
-        return typeid(UserType).name();
-    }
-
-    static const char *InstanceMetatableName()
-    {
-        return typeid(T).name();
-    }
 
     UserType()
     {
     }
     ~UserType()
     {
-        std::cerr << "~" << TypeMetatableName() << std::endl;
+        std::cerr << "~" << internal::MetatableName<T>::TypeName() << std::endl;
     }
 
     // for lambda
@@ -649,7 +654,7 @@ public:
     template <typename F>
     UserType &Getter(const char *name, F f)
     {
-        m_propertyMap._Getter(name, f, &decltype(f)::operator());
+        m_propertyMap.SetLambdaGetter(name, f, &decltype(f)::operator());
         return *this;
     }
 
@@ -657,7 +662,7 @@ public:
     template <typename C, typename R>
     UserType &Getter(const char *name, R C::*f)
     {
-        m_propertyMap._Getter(name, f);
+        m_propertyMap.SetFieldGetter(name, f);
         return *this;
     }
 
@@ -692,7 +697,7 @@ public:
         lua_pop(L, 1);
 
         // push type userdata to stack
-        internal::UserData<TypeUserData>::New(L, TypeUserData{}, TypeMetatableName());
+        internal::UserData<TypeUserData>::New(L, TypeUserData{}, internal::MetatableName<T>::TypeName());
     }
 };
 
