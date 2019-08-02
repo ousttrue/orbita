@@ -57,7 +57,23 @@ struct Traits
         auto p = (T *)lua_topointer(L, index);
         return p;
     }
-};
+
+    static int PushValue(lua_State *L, const T &value)
+    {
+        auto name = MetatableName<T>::InstanceName();
+        if (!UserData<T>::New(L, value, name))
+        {
+            // error
+            lua_pushfstring(L, "unknown type [%s]", name);
+            lua_error(L);
+            return 1;
+        }
+        else
+        {
+            // success
+            return 1;
+        }
+    }};
 
 // for pointer type
 template <typename T>
@@ -69,6 +85,42 @@ struct Traits<T *>
     {
         auto p = (T **)lua_topointer(L, index);
         return *p;
+    }
+
+    static int PushValue(lua_State *L, T *value)
+    {
+        auto name = MetatableName<T *>::InstanceName();
+        if (!UserData<T *>::New(L, value, name))
+        {
+            // unknown
+            lua_pushlightuserdata(L, value);
+            return 1;
+        }
+        else
+        {
+            // success
+            return 1;
+        }
+    }
+};
+
+template <typename T>
+struct Traits<T &>
+{
+    static int PushValue(lua_State *L, T &value)
+    {
+        auto name = UserType<T &>::InstanceMetatableName();
+        if (!UserData<T &>::New(L, value, name))
+        {
+            // unknown
+            lua_pushlightuserdata(L, &value);
+            return 1;
+        }
+        else
+        {
+            // success
+            return 1;
+        }
     }
 };
 
@@ -118,67 +170,6 @@ public:
         }
     }
 }; // namespace internal
-
-template <typename T>
-struct UserTypePush
-{
-    static int PushValue(lua_State *L, const T &value)
-    {
-        auto name = MetatableName<T>::InstanceName();
-        if (!UserData<T>::New(L, value, name))
-        {
-            // error
-            lua_pushfstring(L, "unknown type [%s]", name);
-            lua_error(L);
-            return 1;
-        }
-        else
-        {
-            // success
-            return 1;
-        }
-    }
-};
-
-template <typename T>
-struct UserTypePush<T *>
-{
-    static int PushValue(lua_State *L, T *value)
-    {
-        auto name = MetatableName<T *>::InstanceName();
-        if (!UserData<T *>::New(L, value, name))
-        {
-            // unknown
-            lua_pushlightuserdata(L, value);
-            return 1;
-        }
-        else
-        {
-            // success
-            return 1;
-        }
-    }
-};
-
-template <typename T>
-struct UserTypePush<T &>
-{
-    static int PushValue(lua_State *L, T &value)
-    {
-        auto name = UserType<T &>::InstanceMetatableName();
-        if (!UserData<T &>::New(L, value, name))
-        {
-            // unknown
-            lua_pushlightuserdata(L, &value);
-            return 1;
-        }
-        else
-        {
-            // success
-            return 1;
-        }
-    }
-};
 
 template <typename R, typename T, typename... ARGS>
 struct Applyer
@@ -273,7 +264,7 @@ static int perilune_pushvalue(lua_State *L, float n)
 template <typename T>
 static int perilune_pushvalue(lua_State *L, const T &t)
 {
-    return internal::UserTypePush<T>::PushValue(L, t);
+    return internal::Traits<T>::PushValue(L, t);
 }
 #pragma endregion
 
