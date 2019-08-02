@@ -197,47 +197,47 @@ struct UserTypePush<T &>
     }
 };
 
-template <typename R, typename T, typename C, typename... ARGS>
+template <typename R, typename T, typename... ARGS>
 struct Applyer
 {
-    static int Apply(lua_State *L, typename Traits<T>::Type *value, R (C::*m)(ARGS...), ARGS... args)
+    static int Apply(lua_State *L, typename Traits<T>::Type *value, R (T::*m)(ARGS...), ARGS... args)
     {
         auto r = (value->*m)(args...);
         return perilune_pushvalue(L, r);
     }
 };
-template <typename R, typename T, typename C, typename... ARGS>
-struct Applyer<R &, T, C, ARGS...>
+template <typename R, typename T, typename... ARGS>
+struct Applyer<R &, T, ARGS...>
 {
-    static int Apply(lua_State *L, typename Traits<T>::Type *value, R &(C::*m)(ARGS...), ARGS... args)
+    static int Apply(lua_State *L, typename Traits<T>::Type *value, R &(T::*m)(ARGS...), ARGS... args)
     {
         R &r = (value->*m)(args...);
         return perilune_pushvalue(L, r);
     }
 };
-template <typename T, typename C, typename... ARGS>
-struct Applyer<void, T, C, ARGS...>
+template <typename T, typename... ARGS>
+struct Applyer<void, T, ARGS...>
 {
-    static int Apply(lua_State *L, typename Traits<T>::Type *value, void (C::*m)(ARGS...), ARGS... args)
+    static int Apply(lua_State *L, typename Traits<T>::Type *value, void (T::*m)(ARGS...), ARGS... args)
     {
         (value->*m)(args...);
         return 0;
     }
 };
 
-template <typename R, typename T, typename C, typename... ARGS>
+template <typename R, typename T, typename... ARGS>
 struct ConstApplyer
 {
-    static int Apply(lua_State *L, typename Traits<T>::Type *value, R (C::*m)(ARGS...) const, ARGS... args)
+    static int Apply(lua_State *L, typename Traits<T>::Type *value, R (T::*m)(ARGS...) const, ARGS... args)
     {
         auto r = (value->*m)(args...);
         return perilune_pushvalue(L, r);
     }
 };
-template <typename R, typename T, typename C, typename... ARGS>
-struct ConstApplyer<R &, T, C, ARGS...>
+template <typename R, typename T, typename... ARGS>
+struct ConstApplyer<R &, T, ARGS...>
 {
-    static int Apply(lua_State *L, typename Traits<T>::Type *value, R &(C::*m)(ARGS...) const, ARGS... args)
+    static int Apply(lua_State *L, typename Traits<T>::Type *value, R &(T::*m)(ARGS...) const, ARGS... args)
     {
         auto r = &(value->*m)(args...);
         auto name = MetatableName<R>::InstanceName();
@@ -255,10 +255,10 @@ struct ConstApplyer<R &, T, C, ARGS...>
         // return perilune_pushvalue(L, r);
     }
 };
-template <typename T, typename C, typename... ARGS>
-struct ConstApplyer<void, T, C, ARGS...>
+template <typename T, typename... ARGS>
+struct ConstApplyer<void, T, ARGS...>
 {
-    static int Apply(lua_State *L, typename Traits<T>::Type *value, void (C::*m)(ARGS...) const, ARGS... args)
+    static int Apply(lua_State *L, typename Traits<T>::Type *value, void (T::*m)(ARGS...) const, ARGS... args)
     {
         (value->*m)(args...);
         return 0;
@@ -458,35 +458,31 @@ public:
 template <typename T>
 class MethodMap
 {
-    typedef std::function<int(lua_State *)> LuaMethod;
+    typedef std::function<int(lua_State *, T *)> LuaMethod;
     std::unordered_map<std::string, LuaMethod> m_methodMap;
     ;
 
 public:
-    template <typename R, typename C, typename... ARGS, std::size_t... IS>
+    template <typename R, typename... ARGS, std::size_t... IS>
     void Method(const char *name,
-                R (C::*m)(ARGS...),
+                R (T::*m)(ARGS...),
                 std::index_sequence<IS...>)
     {
-        // auto self = this;
-        LuaMethod func = [m](lua_State *L) {
-            auto value = internal::UserData<T>::GetThis(L, lua_upvalueindex(1)); // from upvalue
+        LuaMethod func = [m](lua_State *L, T* value) {
             auto args = perilune_totuple<std::remove_reference<ARGS>::type...>(L, 1);
-            return internal::Applyer<R, T, C, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
+            return internal::Applyer<R, T, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
         };
         m_methodMap.insert(std::make_pair(name, func));
     }
 
-    template <typename R, typename C, typename... ARGS, std::size_t... IS>
+    template <typename R, typename... ARGS, std::size_t... IS>
     void ConstMethod(const char *name,
-                     R (C::*m)(ARGS...) const,
+                     R (T::*m)(ARGS...) const,
                      std::index_sequence<IS...>)
     {
-        // auto self = this;
-        LuaMethod func = [m](lua_State *L) {
-            auto value = internal::UserData<T>::GetThis(L, lua_upvalueindex(1)); // from upvalue
+        LuaMethod func = [m](lua_State *L, T* value) {
             auto args = perilune_totuple<ARGS...>(L, 1);
-            return internal::ConstApplyer<R, T, C, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
+            return internal::ConstApplyer<R, T, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
         };
         m_methodMap.insert(std::make_pair(name, func));
     }
@@ -554,7 +550,7 @@ class UserType
     }
 
     PropertyMap<Type> m_propertyMap;
-    MethodMap<T> m_methodMap;
+    MethodMap<Type> m_methodMap;
 
     static int InstanceGCDispatch(lua_State *L)
     {
@@ -592,12 +588,13 @@ class UserType
     static int InstanceMethodDispatch(lua_State *L)
     {
         auto type = GetFromRegistry(L);
+        auto self = internal::Traits<T>::GetSelf(L, lua_upvalueindex(1));
         auto key = lua_tostring(L, lua_upvalueindex(2));
 
         auto callback = type->m_methodMap.Get(key);
         if (callback)
         {
-            return callback(L);
+            return callback(L, self);
         }
 
         // error
@@ -686,6 +683,7 @@ public:
         return *this;
     }
 
+    // for const member function pointer
     template <typename R, typename C, typename... ARGS>
     UserType &Method(const char *name, R (C::*m)(ARGS...) const)
     {
