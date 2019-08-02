@@ -52,11 +52,6 @@ struct Traits
 {
     using Type = T;
 
-    static Type *GetThis(T *t)
-    {
-        return t;
-    }
-
     static Type *GetSelf(lua_State *L, int index)
     {
         auto p = (T *)lua_topointer(L, index);
@@ -69,11 +64,6 @@ template <typename T>
 struct Traits<T *>
 {
     using Type = T;
-
-    static Type *GetThis(T **t)
-    {
-        return *t;
-    }
 
     static Type *GetSelf(lua_State *L, int index)
     {
@@ -126,13 +116,6 @@ public:
         {
             return nullptr;
         }
-    }
-
-    static Type *
-    GetThis(lua_State *L, int index)
-    {
-        auto data = GetData(L, index);
-        return internal::Traits<T>::GetThis(data);
     }
 }; // namespace internal
 
@@ -435,7 +418,6 @@ public:
     {
         // auto self = this;
         PropertyMethod func = [f](lua_State *L, T *value) {
-            // auto value = internal::UserData<T>::GetThis(L, 1);
             R r = value->*f;
 
             int result = perilune_pushvalue(L, r);
