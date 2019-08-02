@@ -60,11 +60,10 @@ struct Traits
 
     static int PushValue(lua_State *L, const T &value)
     {
-        auto name = MetatableName<T>::InstanceName();
-        if (!UserData<T>::New(L, value, name))
+        if (!UserData<T>::New(L, value))
         {
             // error
-            lua_pushfstring(L, "unknown type [%s]", name);
+            lua_pushfstring(L, "unknown type [%s]", MetatableName<T>::InstanceName());
             lua_error(L);
             return 1;
         }
@@ -73,7 +72,8 @@ struct Traits
             // success
             return 1;
         }
-    }};
+    }
+};
 
 // for pointer type
 template <typename T>
@@ -89,8 +89,7 @@ struct Traits<T *>
 
     static int PushValue(lua_State *L, T *value)
     {
-        auto name = MetatableName<T *>::InstanceName();
-        if (!UserData<T *>::New(L, value, name))
+        if (!UserData<T *>::New(L, value))
         {
             // unknown
             lua_pushlightuserdata(L, value);
@@ -132,20 +131,20 @@ class UserData
     using Type = typename Traits<T>::Type;
 
 public:
-    static T *New(lua_State *L, const T &value, const char *metatableName)
+    static T *New(lua_State *L, const T &value)
     {
         auto p = (T *)lua_newuserdata(L, sizeof(T));
-        //*p = value;
-        memcpy((void *)p, &value, sizeof(T));
 
         // set metatable to type userdata
-        auto pushedType = luaL_getmetatable(L, metatableName);
+        auto pushedType = luaL_getmetatable(L, MetatableName<T>::InstanceName());
         if (pushedType == 0) // nil
         {
             lua_pop(L, 2);
             return nullptr;
         }
 
+        //*p = value;
+        memcpy((void *)p, &value, sizeof(T));
         lua_setmetatable(L, -2);
 
         return p;
@@ -214,8 +213,7 @@ struct ConstApplyer<R &, T, ARGS...>
     static int Apply(lua_State *L, typename Traits<T>::Type *value, R &(T::*m)(ARGS...) const, ARGS... args)
     {
         auto r = &(value->*m)(args...);
-        auto name = MetatableName<R>::InstanceName();
-        if (!UserData<R>::New(L, *r, name))
+        if (!UserData<R>::New(L, *r))
         {
             // unknown
             lua_pushlightuserdata(L, (void *)r);
@@ -441,7 +439,7 @@ public:
                 R (T::*m)(ARGS...),
                 std::index_sequence<IS...>)
     {
-        LuaMethod func = [m](lua_State *L, T* value) {
+        LuaMethod func = [m](lua_State *L, T *value) {
             auto args = perilune_totuple<std::remove_reference<ARGS>::type...>(L, 1);
             return internal::Applyer<R, T, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
         };
@@ -453,7 +451,7 @@ public:
                      R (T::*m)(ARGS...) const,
                      std::index_sequence<IS...>)
     {
-        LuaMethod func = [m](lua_State *L, T* value) {
+        LuaMethod func = [m](lua_State *L, T *value) {
             auto args = perilune_totuple<ARGS...>(L, 1);
             return internal::ConstApplyer<R, T, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
         };
@@ -679,8 +677,13 @@ public:
         LuaNewInstanceMetaTable(L);
         lua_pop(L, 1);
 
-        // push type userdata to stack
-        internal::UserData<TypeUserData>::New(L, TypeUserData{}, internal::MetatableName<T>::TypeName());
+        {
+            // push userdata for Type
+            auto p = (TypeUserData *)lua_newuserdata(L, sizeof(TypeUserData));
+            // set metatable to type userdata
+            auto pushedType = luaL_getmetatable(L, internal::MetatableName<T>::TypeName());
+            lua_setmetatable(L, -2);
+        }
     }
 };
 
