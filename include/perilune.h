@@ -61,7 +61,7 @@ struct Traits
     static int PushValue(lua_State *L, const T &value)
     {
         auto p = UserData<T>::New(L);
-        if (!p)
+        if (p)
         {
             // success
             *p = value;
@@ -101,7 +101,7 @@ struct Traits<T *>
         else
         {
             // unknown
-            lua_pushlightuserdata(L, value);
+            lua_pushlightuserdata(L, (void*)value);
             return 1;
         }
     }
@@ -662,7 +662,7 @@ public:
         m_destructor = destructor;
         if (m_destructor)
         {
-            std::cerr << "destructor" << std::endl;
+            // std::cerr << "destructor" << std::endl;
         }
         return *this;
     }
