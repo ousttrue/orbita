@@ -51,7 +51,7 @@ int main(int argc, char **argv)
         .StaticMethod("new", []() {
             return new Win32Window;
         })
-        .Destructor([](Win32Window *p) {
+        .MetaMethod(perilune::LuaMetatableKey::__gc, [](Win32Window *p) {
             std::cerr << "destruct: " << p << std::endl;
             delete p;
         })
@@ -64,7 +64,7 @@ int main(int argc, char **argv)
     static perilune::UserType<DX11Context *> dx11;
     dx11
         .StaticMethod("new", []() { return new DX11Context; })
-        .Destructor([](DX11Context *p) { delete p; })
+        .MetaMethod(perilune::LuaMetatableKey::__gc, [](DX11Context *p) { delete p; })
         .Method("create", &DX11Context::Create)
         .Method("new_frame", &DX11Context::NewFrame)
         .Method("present", &DX11Context::Present)

@@ -30,9 +30,26 @@ extern "C"
 namespace perilune
 {
 
+enum class LuaMetatableKey
+{
+    __gc,
+    __index,
+};
+
 namespace internal
 {
+static const char *ToString(LuaMetatableKey key)
+{
+    switch (key)
+    {
+    case LuaMetatableKey::__gc:
+        return "__gc";
+    case LuaMetatableKey::__index:
+        return "__index";
+    }
 
+    throw std::exception("unknown key");
+}
 template <typename T>
 struct MetatableName
 {
@@ -529,12 +546,6 @@ static int LuaFuncClosure(lua_State *L)
     return (*func)(L);
 }
 
-enum class LuaMetatableKey
-{
-    __gc,
-    __index,
-};
-
 template <typename T>
 class UserType
 {
@@ -551,7 +562,7 @@ class UserType
 
     internal::StaticMethodMap m_staticMethods;
 
-    std::function<void(T &)> m_destructor;
+    std::unordered_map<LuaMetatableKey, LuaFunc> m_metamethodMap;
 
     // stack 1:table(userdata), 2:key
     static int TypeIndexDispatch(lua_State *L)
@@ -642,7 +653,6 @@ class UserType
         return 1;
     }
 
-    LuaFunc m_destructor_;
     void LuaNewInstanceMetaTable(lua_State *L)
     {
         std::cerr << "create: " << internal::MetatableName<T>::InstanceName() << std::endl;
@@ -653,18 +663,11 @@ class UserType
         lua_pushcfunction(L, &UserType::InstanceIndexDispatch);
         lua_setfield(L, metatable, "__index");
 
-        if (m_destructor)
+        for (auto &kv : m_metamethodMap)
         {
-            auto dest = m_destructor;
-            m_destructor_ = [dest](lua_State *L) {
-                std::cerr << "__GC" << std::endl;
-                auto value = internal::Traits<T>::GetData(L, 1);
-                dest(*value);
-                return 0;
-            };
-            lua_pushlightuserdata(L, &m_destructor_);
+            lua_pushlightuserdata(L, &kv.second);
             lua_pushcclosure(L, &LuaFuncClosure, 1);
-            lua_setfield(L, metatable, "__gc");
+            lua_setfield(L, metatable, internal::ToString(kv.first));
         }
     }
 
@@ -694,19 +697,29 @@ public:
         return *this;
     }
 
-    UserType &Destructor(const std::function<void(T &)> &destructor)
+    template <typename F, typename R, typename C, typename... ARGS>
+    void _MetaMethod(LuaMetatableKey key, const F &f, R (C::*m)(ARGS...) const)
     {
-        if (m_destructor)
-        {
-            throw std::exception("destructor already exits");
-        }
-        m_destructor = destructor;
-        if (m_destructor)
-        {
-            // std::cerr << "destructor" << std::endl;
-        }
+        auto callback = [f](lua_State *L) {
+            auto self = internal::Traits<T>::GetData(L, 1);
+            f(*self);
+            return 0;
+        };
+        m_metamethodMap.insert(std::make_pair(LuaMetatableKey::__gc, callback));
+    }
+
+    template <typename F>
+    UserType &MetaMethod(LuaMetatableKey key, F f)
+    {
+        _MetaMethod(key, f, &decltype(f)::operator());
         return *this;
     }
+
+    // UserType &Destructor(const std::function<void(T &)> &f)
+    // {
+    //     MetaMethod(LuaMetatableKey::__gc, f);
+    //     return *this;
+    // }
 
     // for lambda
     template <typename F>
