@@ -175,6 +175,11 @@ struct LuaPush<T *>
     using PT = T *;
     static int Push(lua_State *L, T *value)
     {
+        if (!value)
+        {
+            return 0;
+        }
+
         auto p = (PT *)lua_newuserdata(L, sizeof(T *));
         auto pushedType = luaL_getmetatable(L, MetatableName<T *>::InstanceName());
         if (pushedType)
@@ -333,6 +338,22 @@ struct LuaGet<void *>
     }
 };
 template <>
+struct LuaGet<std::string>
+{
+    static std::string Get(lua_State *L, int index)
+    {
+        auto str = luaL_checkstring(L, index);
+        if (str)
+        {
+            return std::string(str);
+        }
+        else
+        {
+            return "";
+        }
+    }
+};
+template <>
 struct LuaGet<std::wstring>
 {
     static std::wstring Get(lua_State *L, int index)
@@ -428,6 +449,10 @@ public:
     {
         // auto self = this;
         PropertyMethod func = [f](lua_State *L, T *value) {
+            if (!value)
+            {
+                throw std::exception("null");
+            }
             R r = value->*f;
             return LuaPush<R>::Push(L, r);
         };
@@ -567,8 +592,8 @@ class UserType
     static int InstanceIndexDispatch(lua_State *L)
     {
         auto type = GetFromRegistry(L);
-        auto self = internal::Traits<T>::GetSelf(L, 1);
         auto key = lua_tostring(L, 2);
+        auto self = internal::Traits<T>::GetSelf(L, 1);
 
         {
             auto property = type->m_propertyMap.Get(key);
