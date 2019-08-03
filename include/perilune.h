@@ -18,6 +18,7 @@ extern "C"
 #include <lauxlib.h>
 }
 
+#include <sstream>
 #include <iostream>
 #include <functional>
 #include <unordered_map>
@@ -280,7 +281,9 @@ struct LuaGet
         else
         {
             // return nullptr;
-            throw new std::exception("not implemented");
+            std::stringstream ss;
+            ss << "LuaGet<" << typeid(T).name() << "> is not implemented";
+            throw std::exception(ss.str().c_str());
         }
     }
 };
@@ -301,7 +304,7 @@ struct LuaGet<T *>
         else
         {
             // return nullptr;
-            throw new std::exception("not implemented");
+            throw std::exception("not implemented");
         }
     }
 };
@@ -589,7 +592,22 @@ class UserType
         auto callback = type->m_methodMap.Get(key);
         if (callback)
         {
-            return callback(L, self);
+            try
+            {
+                return callback(L, self);
+            }
+            catch (const std::exception &ex)
+            {
+                lua_pushfstring(L, ex.what());
+                lua_error(L);
+                return 1;
+            }
+            catch (...)
+            {
+                lua_pushfstring(L, "fail to %s", key);
+                lua_error(L);
+                return 1;
+            }
         }
 
         // error
