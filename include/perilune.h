@@ -33,7 +33,7 @@ namespace perilune
 enum class LuaMetatableKey
 {
     __gc,
-    __index,
+    // __index,
 };
 
 namespace internal
@@ -44,8 +44,8 @@ static const char *ToString(LuaMetatableKey key)
     {
     case LuaMetatableKey::__gc:
         return "__gc";
-    case LuaMetatableKey::__index:
-        return "__index";
+        // case LuaMetatableKey::__index:
+        //     return "__index";
     }
 
     throw std::exception("unknown key");
@@ -443,99 +443,12 @@ public:
 };
 
 template <typename T>
-class PropertyMap
-{
-    typedef std::function<int(lua_State *, T *)> PropertyMethod;
-    std::unordered_map<std::string, PropertyMethod> m_getterMap;
-
-public:
-    template <typename F, typename C, typename R>
-    void SetLambdaGetter(const char *name, const F &f, R (C::*)(const T &value) const)
-    {
-        PropertyMethod func = [f](lua_State *L, T *value) {
-            // auto value = internal::UserData<T>::GetData(L, 1);
-            R r = f(*value);
-            return LuaPush<R>::Push(L, r);
-        };
-        m_getterMap.insert(std::make_pair(name, func));
-    }
-
-    // for field
-    template <typename C, typename R>
-    void SetFieldGetter(const char *name, R C::*f)
-    {
-        // auto self = this;
-        PropertyMethod func = [f](lua_State *L, T *value) {
-            if (!value)
-            {
-                throw std::exception("null");
-            }
-            R r = value->*f;
-            return LuaPush<R>::Push(L, r);
-        };
-        m_getterMap.insert(std::make_pair(name, func));
-    }
-
-    PropertyMethod Get(const char *key)
-    {
-        auto found = m_getterMap.find(key);
-        if (found == m_getterMap.end())
-        {
-            return PropertyMethod();
-        }
-        return found->second;
-    }
-};
-
-template <typename T>
 struct remove_const_ref
 {
     using no_ref = typename std::remove_reference<T>::type;
     using type = typename std::remove_const<no_ref>::type;
 };
 
-template <typename T>
-class MethodMap
-{
-    typedef std::function<int(lua_State *, T *)> LuaMethod;
-    std::unordered_map<std::string, LuaMethod> m_methodMap;
-    ;
-
-public:
-    template <typename R, typename... ARGS, std::size_t... IS>
-    void Method(const char *name,
-                R (T::*m)(ARGS...),
-                std::index_sequence<IS...>)
-    {
-        LuaMethod func = [m](lua_State *L, T *value) {
-            auto args = perilune_totuple<remove_const_ref<ARGS>::type...>(L, 1);
-            return internal::Applyer<R, T, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
-        };
-        m_methodMap.insert(std::make_pair(name, func));
-    }
-
-    template <typename R, typename... ARGS, std::size_t... IS>
-    void ConstMethod(const char *name,
-                     R (T::*m)(ARGS...) const,
-                     std::index_sequence<IS...>)
-    {
-        LuaMethod func = [m](lua_State *L, T *value) {
-            auto args = perilune_totuple<ARGS...>(L, 1);
-            return internal::ConstApplyer<R, T, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
-        };
-        m_methodMap.insert(std::make_pair(name, func));
-    }
-
-    LuaMethod Get(const char *key)
-    {
-        auto found = m_methodMap.find(key);
-        if (found == m_methodMap.end())
-        {
-            return LuaMethod();
-        }
-        return found->second;
-    }
-};
 } // namespace internal
 
 using LuaFunc = std::function<int(lua_State *)>;
@@ -545,6 +458,141 @@ static int LuaFuncClosure(lua_State *L)
     auto func = (LuaFunc *)lua_touserdata(L, lua_upvalueindex(1));
     return (*func)(L);
 }
+
+template <typename T>
+class IndexDispatcher
+{
+    using Type = typename internal::Traits<T>::Type;
+
+    IndexDispatcher(const IndexDispatcher &) = delete;
+    IndexDispatcher &operator=(const IndexDispatcher &) = delete;
+
+    LuaFunc m_closure;
+
+    struct Value
+    {
+        bool IsFunction = false;
+        LuaFunc Body;
+    };
+    std::unordered_map<std::string, Value> m_map;
+
+    // stack#1: userdata
+    // stack#2: key
+    int Dispatch(lua_State *L)
+    {
+        auto key = lua_tostring(L, 2);
+        auto found = m_map.find(key);
+        if (found == m_map.end())
+        {
+            lua_pushfstring(L, "'%s' is not found in __index", key);
+            lua_error(L);
+            return 1;
+        }
+
+        if (!found->second.IsFunction)
+        {
+            // execute getter or setter
+            return found->second.Body(L);
+        }
+
+        // upvalue#1: body
+        lua_pushlightuserdata(L, &found->second.Body);
+        // upvalue#2: userdata
+        lua_pushvalue(L, -3);
+        // closure
+        lua_pushcclosure(L, &LuaFuncClosure, 2);
+        return 1;
+    }
+
+    template <typename R, typename C, typename... ARGS, std::size_t... IS>
+    void _Method(const char *name, R (C::*m)(ARGS...), std::index_sequence<IS...>)
+    {
+        // upvalue#1: userdata
+        LuaFunc func = [m](lua_State *L) {
+            auto value = internal::Traits<T>::GetSelf(L, lua_upvalueindex(2));
+            auto args = internal::perilune_totuple<internal::remove_const_ref<ARGS>::type...>(L, 1);
+            return internal::Applyer<R, Type, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
+        };
+        m_map.insert(std::make_pair(name, Value{true, func}));
+    }
+
+    template <typename R, typename C, typename... ARGS, std::size_t... IS>
+    void _ConstMethod(const char *name, R (C::*m)(ARGS...) const, std::index_sequence<IS...>)
+    {
+        // upvalue#1: userdata
+        LuaFunc func = [m](lua_State *L) {
+            auto value = internal::Traits<T>::GetSelf(L, lua_upvalueindex(2));
+            auto args = internal::perilune_totuple<ARGS...>(L, 1);
+            return internal::ConstApplyer<R, Type, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
+        };
+        m_map.insert(std::make_pair(name, Value{true, func}));
+    }
+
+    template <typename F, typename C, typename R>
+    void _SetLambdaGetter(const char *name, const F &f, R (C::*)(const T &value) const)
+    {
+        LuaFunc func = [f](lua_State *L) {
+            auto value = internal::Traits<T>::GetSelf(L, 1);
+            R r = f(*value);
+            return internal::LuaPush<R>::Push(L, r);
+        };
+        m_map.insert(std::make_pair(name, Value{false, func}));
+    }
+
+    // for field
+    template <typename C, typename R>
+    void _SetFieldGetter(const char *name, R C::*f)
+    {
+        // auto self = this;
+        LuaFunc func = [f](lua_State *L) {
+            auto value = internal::Traits<T>::GetSelf(L, 1);
+            R r = value->*f;
+            return internal::LuaPush<R>::Push(L, r);
+        };
+        m_map.insert(std::make_pair(name, Value{false, func}));
+    }
+
+public:
+    IndexDispatcher()
+    {
+        m_closure = std::bind(&IndexDispatcher::Dispatch, this, std::placeholders::_1);
+    }
+
+    ~IndexDispatcher() {}
+
+    LuaFunc *GetLuaFunc()
+    {
+        return &m_closure;
+    }
+
+    // for member function pointer
+    template <typename R, typename C, typename... ARGS>
+    void Method(const char *name, R (C::*m)(ARGS...))
+    {
+        _Method(name, m, std::index_sequence_for<ARGS...>());
+    }
+
+    // for const member function pointer
+    template <typename R, typename C, typename... ARGS>
+    void Method(const char *name, R (C::*m)(ARGS...) const)
+    {
+        _ConstMethod(name, m, std::index_sequence_for<ARGS...>());
+    }
+
+    // for lambda
+    template <typename F>
+    void Getter(const char *name, F f)
+    {
+        _SetLambdaGetter(name, f, &decltype(f)::operator());
+    }
+
+    // for member field pointer
+    template <typename C, typename R>
+    void Getter(const char *name, R C::*f)
+    {
+        _SetFieldGetter(name, f);
+    }
+};
 
 template <typename T>
 class UserType
@@ -597,62 +645,6 @@ class UserType
         lua_setfield(L, metatable, "__index");
     }
 
-    internal::PropertyMap<Type> m_propertyMap;
-    internal::MethodMap<Type> m_methodMap;
-
-    // stack 1:table(userdata), 2:key
-    static int InstanceIndexDispatch(lua_State *L)
-    {
-        auto type = GetFromRegistry(L);
-        auto key = lua_tostring(L, 2);
-        auto self = internal::Traits<T>::GetSelf(L, 1);
-
-        {
-            auto property = type->m_propertyMap.Get(key);
-            if (property)
-            {
-                return property(L, self);
-            }
-        }
-
-        lua_pushcclosure(L, &UserType::InstanceMethodDispatch, 2);
-        return 1;
-    }
-
-    // upvalue 1:table(userdata), 2:key
-    static int InstanceMethodDispatch(lua_State *L)
-    {
-        auto type = GetFromRegistry(L);
-        auto self = internal::Traits<T>::GetSelf(L, lua_upvalueindex(1));
-        auto key = lua_tostring(L, lua_upvalueindex(2));
-
-        auto callback = type->m_methodMap.Get(key);
-        if (callback)
-        {
-            try
-            {
-                return callback(L, self);
-            }
-            catch (const std::exception &ex)
-            {
-                lua_pushfstring(L, ex.what());
-                lua_error(L);
-                return 1;
-            }
-            catch (...)
-            {
-                lua_pushfstring(L, "fail to %s", key);
-                lua_error(L);
-                return 1;
-            }
-        }
-
-        // error
-        lua_pushfstring(L, "no %s method", key);
-        lua_error(L);
-        return 1;
-    }
-
     void LuaNewInstanceMetaTable(lua_State *L)
     {
         std::cerr << "create: " << internal::MetatableName<T>::InstanceName() << std::endl;
@@ -660,8 +652,14 @@ class UserType
 
         // first time
         int metatable = lua_gettop(L);
-        lua_pushcfunction(L, &UserType::InstanceIndexDispatch);
-        lua_setfield(L, metatable, "__index");
+
+        auto indexFunc = m_indexDispatcher.GetLuaFunc();
+        if (indexFunc)
+        {
+            lua_pushlightuserdata(L, indexFunc);
+            lua_pushcclosure(L, &LuaFuncClosure, 1);
+            lua_setfield(L, metatable, "__index");
+        }
 
         for (auto &kv : m_metamethodMap)
         {
@@ -678,6 +676,17 @@ class UserType
         auto p = (UserType *)lua_touserdata(L, -1);
         lua_pop(L, 1);
         return p;
+    }
+
+    template <typename F, typename R, typename C, typename... ARGS>
+    void _MetaMethod(LuaMetatableKey key, const F &f, R (C::*m)(ARGS...) const)
+    {
+        auto callback = [f](lua_State *L) {
+            auto self = internal::Traits<T>::GetData(L, 1);
+            f(*self);
+            return 0;
+        };
+        m_metamethodMap.insert(std::make_pair(LuaMetatableKey::__gc, callback));
     }
 
 public:
@@ -697,17 +706,6 @@ public:
         return *this;
     }
 
-    template <typename F, typename R, typename C, typename... ARGS>
-    void _MetaMethod(LuaMetatableKey key, const F &f, R (C::*m)(ARGS...) const)
-    {
-        auto callback = [f](lua_State *L) {
-            auto self = internal::Traits<T>::GetData(L, 1);
-            f(*self);
-            return 0;
-        };
-        m_metamethodMap.insert(std::make_pair(LuaMetatableKey::__gc, callback));
-    }
-
     template <typename F>
     UserType &MetaMethod(LuaMetatableKey key, F f)
     {
@@ -715,41 +713,10 @@ public:
         return *this;
     }
 
-    // UserType &Destructor(const std::function<void(T &)> &f)
-    // {
-    //     MetaMethod(LuaMetatableKey::__gc, f);
-    //     return *this;
-    // }
-
-    // for lambda
-    template <typename F>
-    UserType &Getter(const char *name, F f)
+    IndexDispatcher<T> m_indexDispatcher;
+    UserType &IndexDispatcher(const std::function<void(IndexDispatcher<T> *)> &f)
     {
-        m_propertyMap.SetLambdaGetter(name, f, &decltype(f)::operator());
-        return *this;
-    }
-
-    // for member field pointer
-    template <typename C, typename R>
-    UserType &Getter(const char *name, R C::*f)
-    {
-        m_propertyMap.SetFieldGetter(name, f);
-        return *this;
-    }
-
-    // for member function pointer
-    template <typename R, typename C, typename... ARGS>
-    UserType &Method(const char *name, R (C::*m)(ARGS...))
-    {
-        m_methodMap.Method(name, m, std::index_sequence_for<ARGS...>());
-        return *this;
-    }
-
-    // for const member function pointer
-    template <typename R, typename C, typename... ARGS>
-    UserType &Method(const char *name, R (C::*m)(ARGS...) const)
-    {
-        m_methodMap.ConstMethod(name, m, std::index_sequence_for<ARGS...>());
+        f(&m_indexDispatcher);
         return *this;
     }
 

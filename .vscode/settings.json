@@ -16,5 +16,8 @@
         "touserdata",
         "upvalue",
         "upvalueindex"
-    ]
+    ],
+    "files.associations": {
+        "iostream": "cpp"
+    }
 }

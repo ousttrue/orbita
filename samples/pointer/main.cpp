@@ -55,9 +55,11 @@ int main(int argc, char **argv)
             std::cerr << "destruct: " << p << std::endl;
             delete p;
         })
-        .Method("create", &Win32Window::Create)
-        .Method("is_running", &Win32Window::IsRunning)
-        .Method("get_state", &Win32Window::GetState)
+        .IndexDispatcher([](auto d) {
+            d->Method("create", &Win32Window::Create);
+            d->Method("is_running", &Win32Window::IsRunning);
+            d->Method("get_state", &Win32Window::GetState);
+        })
         .LuaNewType(lua.L);
     lua_setglobal(lua.L, "Window");
 
@@ -65,10 +67,12 @@ int main(int argc, char **argv)
     dx11
         .StaticMethod("new", []() { return new DX11Context; })
         .MetaMethod(perilune::LuaMetatableKey::__gc, [](DX11Context *p) { delete p; })
-        .Method("create", &DX11Context::Create)
-        .Method("new_frame", &DX11Context::NewFrame)
-        .Method("present", &DX11Context::Present)
-        .Method("get_context", &DX11Context::GetDeviceContext)
+        .IndexDispatcher([](auto d) {
+            d->Method("create", &DX11Context::Create);
+            d->Method("new_frame", &DX11Context::NewFrame);
+            d->Method("present", &DX11Context::Present);
+            d->Method("get_context", &DX11Context::GetDeviceContext);
+        })
         .LuaNewType(lua.L);
     lua_setglobal(lua.L, "Dx11");
 
