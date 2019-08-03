@@ -19,6 +19,8 @@ header only lua binding
 
 ### value type
 
+for the type that copy side effect is safe.
+
 ```c++
 struct Vector3
 {
@@ -77,6 +79,7 @@ print(n)
 
 ### pointer type
 
+for the type that cannot copy or copy side effect is not safe.
 template specialized.
 
 ```cpp
