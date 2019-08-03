@@ -24,5 +24,4 @@ while window.is_running() do
     -- do something
 
     dx11.present()
-
 end
