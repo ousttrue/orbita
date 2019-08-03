@@ -30,7 +30,7 @@ extern "C"
 namespace perilune
 {
 
-enum class LuaMetatableKey
+enum class MetaKey
 {
     __gc,
     // __index,
@@ -38,13 +38,13 @@ enum class LuaMetatableKey
 
 namespace internal
 {
-static const char *ToString(LuaMetatableKey key)
+static const char *ToString(MetaKey key)
 {
     switch (key)
     {
-    case LuaMetatableKey::__gc:
+    case MetaKey::__gc:
         return "__gc";
-        // case LuaMetatableKey::__index:
+        // case MetaKey::__index:
         //     return "__index";
     }
 
@@ -610,7 +610,7 @@ class UserType
 
     internal::StaticMethodMap m_staticMethods;
 
-    std::unordered_map<LuaMetatableKey, LuaFunc> m_metamethodMap;
+    std::unordered_map<MetaKey, LuaFunc> m_metamethodMap;
 
     // stack 1:table(userdata), 2:key
     static int TypeIndexDispatch(lua_State *L)
@@ -679,14 +679,14 @@ class UserType
     }
 
     template <typename F, typename R, typename C, typename... ARGS>
-    void _MetaMethod(LuaMetatableKey key, const F &f, R (C::*m)(ARGS...) const)
+    void _MetaMethod(MetaKey key, const F &f, R (C::*m)(ARGS...) const)
     {
         auto callback = [f](lua_State *L) {
             auto self = internal::Traits<T>::GetData(L, 1);
             f(*self);
             return 0;
         };
-        m_metamethodMap.insert(std::make_pair(LuaMetatableKey::__gc, callback));
+        m_metamethodMap.insert(std::make_pair(MetaKey::__gc, callback));
     }
 
 public:
@@ -707,7 +707,7 @@ public:
     }
 
     template <typename F>
-    UserType &MetaMethod(LuaMetatableKey key, F f)
+    UserType &MetaMethod(MetaKey key, F f)
     {
         _MetaMethod(key, f, &decltype(f)::operator());
         return *this;
