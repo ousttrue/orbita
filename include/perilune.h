@@ -68,9 +68,9 @@ struct MetatableName
 template <typename T>
 struct Traits
 {
-    using Type = T;
+    using RawType = T;
 
-    static Type *GetSelf(lua_State *L, int index)
+    static RawType *GetSelf(lua_State *L, int index)
     {
         auto p = (T *)lua_touserdata(L, index);
         return p;
@@ -87,11 +87,11 @@ struct Traits
 template <typename T>
 struct Traits<T *>
 {
-    using Type = T;
+    using RawType = T;
 
     using PT = T *;
 
-    static Type *GetSelf(lua_State *L, int index)
+    static RawType *GetSelf(lua_State *L, int index)
     {
         return *(PT *)lua_touserdata(L, index);
     }
@@ -105,7 +105,7 @@ struct Traits<T *>
 template <typename R, typename T, typename... ARGS>
 struct Applyer
 {
-    static int Apply(lua_State *L, typename Traits<T>::Type *value, R (T::*m)(ARGS...), ARGS... args)
+    static int Apply(lua_State *L, typename Traits<T>::RawType *value, R (T::*m)(ARGS...), ARGS... args)
     {
         auto r = (value->*m)(args...);
         return LuaPush<R>::Push(L, r);
@@ -114,7 +114,7 @@ struct Applyer
 template <typename R, typename T, typename... ARGS>
 struct Applyer<R &, T, ARGS...>
 {
-    static int Apply(lua_State *L, typename Traits<T>::Type *value, R &(T::*m)(ARGS...), ARGS... args)
+    static int Apply(lua_State *L, typename Traits<T>::RawType *value, R &(T::*m)(ARGS...), ARGS... args)
     {
         auto &r = (value->*m)(args...);
         return LuaPush<R *>::Push(L, &r);
@@ -123,7 +123,7 @@ struct Applyer<R &, T, ARGS...>
 template <typename T, typename... ARGS>
 struct Applyer<void, T, ARGS...>
 {
-    static int Apply(lua_State *L, typename Traits<T>::Type *value, void (T::*m)(ARGS...), ARGS... args)
+    static int Apply(lua_State *L, typename Traits<T>::RawType *value, void (T::*m)(ARGS...), ARGS... args)
     {
         (value->*m)(args...);
         return 0;
@@ -133,7 +133,7 @@ struct Applyer<void, T, ARGS...>
 template <typename R, typename T, typename... ARGS>
 struct ConstApplyer
 {
-    static int Apply(lua_State *L, typename Traits<T>::Type *value, R (T::*m)(ARGS...) const, ARGS... args)
+    static int Apply(lua_State *L, typename Traits<T>::RawType *value, R (T::*m)(ARGS...) const, ARGS... args)
     {
         auto r = (value->*m)(args...);
         return LuaPush<R>::Push(L, r);
@@ -142,7 +142,7 @@ struct ConstApplyer
 template <typename R, typename T, typename... ARGS>
 struct ConstApplyer<R &, T, ARGS...>
 {
-    static int Apply(lua_State *L, typename Traits<T>::Type *value, R &(T::*m)(ARGS...) const, ARGS... args)
+    static int Apply(lua_State *L, typename Traits<T>::RawType *value, R &(T::*m)(ARGS...) const, ARGS... args)
     {
         auto &r = (value->*m)(args...);
         return LuaPush<R *>::Push(L, &r);
@@ -151,7 +151,7 @@ struct ConstApplyer<R &, T, ARGS...>
 template <typename T, typename... ARGS>
 struct ConstApplyer<void, T, ARGS...>
 {
-    static int Apply(lua_State *L, typename Traits<T>::Type *value, void (T::*m)(ARGS...) const, ARGS... args)
+    static int Apply(lua_State *L, typename Traits<T>::RawType *value, void (T::*m)(ARGS...) const, ARGS... args)
     {
         (value->*m)(args...);
         return 0;
@@ -462,7 +462,7 @@ static int LuaFuncClosure(lua_State *L)
 template <typename T>
 class IndexDispatcher
 {
-    using Type = typename internal::Traits<T>::Type;
+    using RawType = typename internal::Traits<T>::RawType;
 
     IndexDispatcher(const IndexDispatcher &) = delete;
     IndexDispatcher &operator=(const IndexDispatcher &) = delete;
@@ -511,7 +511,7 @@ class IndexDispatcher
         LuaFunc func = [m](lua_State *L) {
             auto value = internal::Traits<T>::GetSelf(L, lua_upvalueindex(2));
             auto args = internal::perilune_totuple<internal::remove_const_ref<ARGS>::type...>(L, 1);
-            return internal::Applyer<R, Type, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
+            return internal::Applyer<R, RawType, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
         };
         m_map.insert(std::make_pair(name, Value{true, func}));
     }
@@ -523,7 +523,7 @@ class IndexDispatcher
         LuaFunc func = [m](lua_State *L) {
             auto value = internal::Traits<T>::GetSelf(L, lua_upvalueindex(2));
             auto args = internal::perilune_totuple<ARGS...>(L, 1);
-            return internal::ConstApplyer<R, Type, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
+            return internal::ConstApplyer<R, RawType, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
         };
         m_map.insert(std::make_pair(name, Value{true, func}));
     }
@@ -601,10 +601,10 @@ class UserType
     UserType(const UserType &) = delete;
     UserType &operator=(const UserType &) = delete;
 
-    using Type = typename internal::Traits<T>::Type;
+    using RawType = typename internal::Traits<T>::RawType;
 
     // userdata dummy for Type
-    struct TypeUserData
+    struct UserTypeDummy
     {
     };
 
@@ -737,7 +737,7 @@ public:
 
         {
             // push userdata for Type
-            auto p = (TypeUserData *)lua_newuserdata(L, sizeof(TypeUserData));
+            auto p = (UserTypeDummy *)lua_newuserdata(L, sizeof(UserTypeDummy));
             // set metatable to type userdata
             auto pushedType = luaL_getmetatable(L, internal::MetatableName<T>::TypeName());
             lua_setmetatable(L, -2);
