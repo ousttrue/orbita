@@ -2,8 +2,12 @@
     "cSpell.words": [
         "Applyer",
         "LOGD",
+        "TLIGHTUSERDATA",
         "TUSERDATA",
+        "cerr",
         "dofile",
+        "endl",
+        "lightuesrdata",
         "metatable",
         "pushcclosure",
         "pushcfunction",
@@ -18,6 +22,7 @@
         "upvalueindex"
     ],
     "files.associations": {
-        "iostream": "cpp"
+        "iostream": "cpp",
+        "vector": "cpp"
     }
 }

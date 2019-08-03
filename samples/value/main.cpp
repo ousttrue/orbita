@@ -85,6 +85,25 @@ int main(int argc, char **argv)
         .LuaNewType(lua.L);
     lua_setglobal(lua.L, "Vector3");
 
+    typedef std::vector<Vector3> Vector3List;
+    perilune::UserType<Vector3List *> vector3ListType;
+    vector3ListType
+        .StaticMethod("New", []() { return new Vector3List; })
+        .MetaMethod(perilune::MetaKey::__len, [](Vector3List *p) {
+            return p->size();
+        })
+        .IndexDispatcher([](perilune::IndexDispatcher<Vector3List *> *d) {
+            // upvalue#2: userdata
+            d->Method("push_back", [](lua_State *L) {
+                auto value = perilune::internal::Traits<Vector3List *>::GetSelf(L, lua_upvalueindex(2));
+                auto v = perilune::internal::LuaGet<Vector3>::Get(L, 1);
+                value->push_back(v);
+                return 0;
+            });
+        })
+        .LuaNewType(lua.L);
+    lua_setglobal(lua.L, "Vector3List");
+
     if (!lua.DoFile(argv[1]))
     {
         return 2;

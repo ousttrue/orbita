@@ -33,7 +33,13 @@ namespace perilune
 enum class MetaKey
 {
     __gc,
-    // __index,
+    __len,
+    __ipairs,
+    __pairs,
+    __tostring,
+    __call,
+    __newindex,
+    // __index, use IndexDispatcher
 };
 
 namespace internal
@@ -44,8 +50,18 @@ static const char *ToString(MetaKey key)
     {
     case MetaKey::__gc:
         return "__gc";
-        // case MetaKey::__index:
-        //     return "__index";
+    case MetaKey::__len:
+        return "__len";
+    case MetaKey::__ipairs:
+        return "__ipairs";
+    case MetaKey::__pairs:
+        return "__pairs";
+    case MetaKey::__tostring:
+        return "__tostring";
+    case MetaKey::__call:
+        return "__call";
+    case MetaKey::__newindex:
+        return "__newindex";
     }
 
     throw std::exception("unknown key");
@@ -101,6 +117,18 @@ struct Traits<T *>
         return (PT *)lua_touserdata(L, index);
     }
 };
+
+template <typename F, typename... ARGS, std::size_t... IS>
+int _Apply(lua_State *L, F f, const std::tuple<ARGS...> &args, std::index_sequence<IS...>)
+{
+    return f(std::get<IS>(args)...);
+}
+
+template <typename F, typename... ARGS>
+int Apply(lua_State *L, F f, const std::tuple<ARGS...> &args)
+{
+    return _Apply(L, f, args, std::index_sequence_for<ARGS...>());
+}
 
 template <typename R, typename T, typename... ARGS>
 struct Applyer
@@ -255,9 +283,19 @@ struct LuaPush<bool>
 };
 
 template <>
-struct LuaPush<int>
+struct LuaPush<int64_t>
 {
-    static int Push(lua_State *L, int n)
+    static int Push(lua_State *L, int64_t n)
+    {
+        lua_pushinteger(L, n);
+        return 1;
+    }
+};
+
+template <>
+struct LuaPush<uint64_t>
+{
+    static int Push(lua_State *L, uint64_t n)
     {
         lua_pushinteger(L, n);
         return 1;
@@ -268,6 +306,16 @@ template <>
 struct LuaPush<float>
 {
     static int Push(lua_State *L, float n)
+    {
+        lua_pushnumber(L, n);
+        return 1;
+    }
+};
+
+template <>
+struct LuaPush<double>
+{
+    static int Push(lua_State *L, double n)
     {
         lua_pushnumber(L, n);
         return 1;
@@ -296,15 +344,11 @@ struct LuaGet
         {
             return *(T *)lua_touserdata(L, index);
         }
-        // else if (t == LUA_TLIGHTUSERDATA)
-        // {
-        //     return (T)lua_touserdata(L, index);
-        // }
         else
         {
             // return nullptr;
             std::stringstream ss;
-            ss << "LuaGet<" << typeid(T).name() << "> is not implemented";
+            ss << "LuaGet<" << typeid(T).name() << "> is " << lua_typename(L, t);
             throw std::exception(ss.str().c_str());
         }
     }
@@ -454,9 +498,24 @@ struct remove_const_ref
 using LuaFunc = std::function<int(lua_State *)>;
 static int LuaFuncClosure(lua_State *L)
 {
-    // execute logic from upvalue
-    auto func = (LuaFunc *)lua_touserdata(L, lua_upvalueindex(1));
-    return (*func)(L);
+    try
+    {
+        // execute logic from upvalue
+        auto func = (LuaFunc *)lua_touserdata(L, lua_upvalueindex(1));
+        return (*func)(L);
+    }
+    catch (const std::exception &ex)
+    {
+        lua_pushfstring(L, ex.what());
+        lua_error(L);
+        return 1;
+    }
+    catch (...)
+    {
+        lua_pushfstring(L, "error");
+        lua_error(L);
+        return 1;
+    }
 }
 
 template <typename T>
@@ -491,8 +550,23 @@ class IndexDispatcher
 
         if (!found->second.IsFunction)
         {
-            // execute getter or setter
-            return found->second.Body(L);
+            try
+            {
+                // execute getter or setter
+                return found->second.Body(L);
+            }
+            catch (const std::exception &ex)
+            {
+                lua_pushfstring(L, ex.what());
+                lua_error(L);
+                return 1;
+            }
+            catch (...)
+            {
+                lua_pushfstring(L, "'%s' error", key);
+                lua_error(L);
+                return 1;
+            }
         }
 
         // upvalue#1: body
@@ -507,7 +581,7 @@ class IndexDispatcher
     template <typename R, typename C, typename... ARGS, std::size_t... IS>
     void _Method(const char *name, R (C::*m)(ARGS...), std::index_sequence<IS...>)
     {
-        // upvalue#1: userdata
+        // upvalue#2: userdata
         LuaFunc func = [m](lua_State *L) {
             auto value = internal::Traits<T>::GetSelf(L, lua_upvalueindex(2));
             auto args = internal::perilune_totuple<internal::remove_const_ref<ARGS>::type...>(L, 1);
@@ -519,7 +593,7 @@ class IndexDispatcher
     template <typename R, typename C, typename... ARGS, std::size_t... IS>
     void _ConstMethod(const char *name, R (C::*m)(ARGS...) const, std::index_sequence<IS...>)
     {
-        // upvalue#1: userdata
+        // upvalue#2: userdata
         LuaFunc func = [m](lua_State *L) {
             auto value = internal::Traits<T>::GetSelf(L, lua_upvalueindex(2));
             auto args = internal::perilune_totuple<ARGS...>(L, 1);
@@ -531,6 +605,7 @@ class IndexDispatcher
     template <typename F, typename C, typename R>
     void _SetLambdaGetter(const char *name, const F &f, R (C::*)(const T &value) const)
     {
+        // stack#1: self
         LuaFunc func = [f](lua_State *L) {
             auto value = internal::Traits<T>::GetSelf(L, 1);
             R r = f(*value);
@@ -543,7 +618,7 @@ class IndexDispatcher
     template <typename C, typename R>
     void _SetFieldGetter(const char *name, R C::*f)
     {
-        // auto self = this;
+        // stack#1: self
         LuaFunc func = [f](lua_State *L) {
             auto value = internal::Traits<T>::GetSelf(L, 1);
             R r = value->*f;
@@ -577,6 +652,12 @@ public:
     void Method(const char *name, R (C::*m)(ARGS...) const)
     {
         _ConstMethod(name, m, std::index_sequence_for<ARGS...>());
+    }
+
+    // lambda
+    void Method(const char *name, const LuaFunc &func)
+    {
+        m_map.insert(std::make_pair(name, Value{true, func}));
     }
 
     // for lambda
@@ -683,10 +764,21 @@ class UserType
     {
         auto callback = [f](lua_State *L) {
             auto self = internal::Traits<T>::GetData(L, 1);
+            R r = f(*self);
+            return internal::LuaPush<R>::Push(L, r);
+        };
+        m_metamethodMap.insert(std::make_pair(key, callback));
+    }
+
+    template <typename F, typename C, typename... ARGS>
+    void _MetaMethod(MetaKey key, const F &f, void (C::*m)(ARGS...) const)
+    {
+        auto callback = [f](lua_State *L) {
+            auto self = internal::Traits<T>::GetData(L, 1);
             f(*self);
             return 0;
         };
-        m_metamethodMap.insert(std::make_pair(MetaKey::__gc, callback));
+        m_metamethodMap.insert(std::make_pair(key, callback));
     }
 
 public:

@@ -14,6 +14,7 @@ header only lua binding
 * [ ] metatable use hash
 * [x] return unknown pointer type to lightuesrdata
 * [x] return unknown value type to error
+* [ ] placement new
 
 ## usage
 
