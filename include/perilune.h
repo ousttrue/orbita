@@ -521,6 +521,20 @@ public:
 };
 } // namespace internal
 
+using LuaFunc = std::function<int(lua_State *)>;
+static int LuaFuncClosure(lua_State *L)
+{
+    // execute logic from upvalue
+    auto func = (LuaFunc *)lua_touserdata(L, lua_upvalueindex(1));
+    return (*func)(L);
+}
+
+enum class LuaMetatableKey
+{
+    __gc,
+    __index,
+};
+
 template <typename T>
 class UserType
 {
@@ -575,19 +589,6 @@ class UserType
     internal::PropertyMap<Type> m_propertyMap;
     internal::MethodMap<Type> m_methodMap;
 
-    static int InstanceGCDispatch(lua_State *L)
-    {
-        std::cerr << "__GC" << std::endl;
-
-        auto self = UserType<T>::GetFromRegistry(L);
-        if (self->m_destructor)
-        {
-            auto value = internal::Traits<T>::GetData(L, -1);
-            self->m_destructor(*value);
-        }
-        return 0;
-    }
-
     // stack 1:table(userdata), 2:key
     static int InstanceIndexDispatch(lua_State *L)
     {
@@ -641,6 +642,7 @@ class UserType
         return 1;
     }
 
+    LuaFunc m_destructor_;
     void LuaNewInstanceMetaTable(lua_State *L)
     {
         std::cerr << "create: " << internal::MetatableName<T>::InstanceName() << std::endl;
@@ -653,7 +655,15 @@ class UserType
 
         if (m_destructor)
         {
-            lua_pushcfunction(L, &UserType::InstanceGCDispatch);
+            auto dest = m_destructor;
+            m_destructor_ = [dest](lua_State *L) {
+                std::cerr << "__GC" << std::endl;
+                auto value = internal::Traits<T>::GetData(L, 1);
+                dest(*value);
+                return 0;
+            };
+            lua_pushlightuserdata(L, &m_destructor_);
+            lua_pushcclosure(L, &LuaFuncClosure, 1);
             lua_setfield(L, metatable, "__gc");
         }
     }
