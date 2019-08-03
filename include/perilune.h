@@ -271,48 +271,81 @@ static int perilune_pushvalue(lua_State *L, const T &t)
 #pragma endregion
 
 #pragma region get tuple
-static void perilune_getvalue(lua_State *L, int index, int *value)
-{
-    *value = (int)luaL_checkinteger(L, index);
-}
-
-static void perilune_getvalue(lua_State *L, int index, float *value)
-{
-    *value = (float)luaL_checknumber(L, index);
-}
-
-static void perilune_getvalue(lua_State *L, int index, void **value)
-{
-    *value = const_cast<void *>(lua_topointer(L, index));
-}
-
-static void perilune_getvalue(lua_State *L, int index, const std::wstring *value)
-{
-    auto str = luaL_checkstring(L, index);
-    // UNICODE
-    *const_cast<std::wstring *>(value) = utf8_to_wstring(str);
-}
-
 template <typename T>
-static void perilune_getvalue(lua_State *L, int index, T *value)
+struct LuaGet
 {
-    auto t = lua_type(L, index);
-    if (t == LUA_TUSERDATA)
+    static T Get(lua_State *L, int index)
     {
-        auto p = (T *)lua_touserdata(L, index);
-        *value = *p;
+        auto t = lua_type(L, index);
+        if (t == LUA_TUSERDATA)
+        {
+            return *(T *)lua_touserdata(L, index);
+        }
+        // else if (t == LUA_TLIGHTUSERDATA)
+        // {
+        //     return (T)lua_topointer(L, index);
+        // }
+        else
+        {
+            // return nullptr;
+            throw new std::exception("not implemented");
+        }
     }
-    else if (t == LUA_TLIGHTUSERDATA)
+};
+template <typename T>
+struct LuaGet<T *>
+{
+    static T *Get(lua_State *L, int index)
     {
-        auto p = (T)lua_topointer(L, index);
-        *value = p;
-        // return (T *)p;
+        auto t = lua_type(L, index);
+        if (t == LUA_TUSERDATA)
+        {
+            return (T *)lua_touserdata(L, index);
+        }
+        else if (t == LUA_TLIGHTUSERDATA)
+        {
+            return (T *)lua_topointer(L, index);
+        }
+        else
+        {
+            // return nullptr;
+            throw new std::exception("not implemented");
+        }
     }
-    else
+};
+template <>
+struct LuaGet<int>
+{
+    static int Get(lua_State *L, int index)
     {
-        // return nullptr;
+        return (int)luaL_checkinteger(L, index);
     }
-}
+};
+template <>
+struct LuaGet<float>
+{
+    static float Get(lua_State *L, int index)
+    {
+        return (float)luaL_checknumber(L, index);
+    }
+};
+template <>
+struct LuaGet<void *>
+{
+    static void *Get(lua_State *L, int index)
+    {
+        return const_cast<void *>(lua_topointer(L, index));
+    }
+};
+template <>
+struct LuaGet<std::wstring>
+{
+    static std::wstring Get(lua_State *L, int index)
+    {
+        auto str = luaL_checkstring(L, index);
+        return utf8_to_wstring(str);
+    }
+};
 
 std::tuple<> perilune_totuple(lua_State *L, int index, std::tuple<> *)
 {
@@ -322,8 +355,7 @@ std::tuple<> perilune_totuple(lua_State *L, int index, std::tuple<> *)
 template <typename A, typename... ARGS>
 std::tuple<A, ARGS...> perilune_totuple(lua_State *L, int index, std::tuple<A, ARGS...> *)
 {
-    A a;
-    perilune_getvalue(L, index, &a);
+    A a = LuaGet<A>::Get(L, index);
     std::tuple<A> t = std::make_tuple(a);
     return std::tuple_cat(std::move(t),
                           perilune_totuple<ARGS...>(L, index + 1));
@@ -424,6 +456,14 @@ public:
 };
 
 template <typename T>
+struct remove_const_ref
+{
+    using no_ref = typename std::remove_reference<T>::type;
+    using type = typename std::remove_const<no_ref>::type;
+};
+
+
+template <typename T>
 class MethodMap
 {
     typedef std::function<int(lua_State *, T *)> LuaMethod;
@@ -437,7 +477,7 @@ public:
                 std::index_sequence<IS...>)
     {
         LuaMethod func = [m](lua_State *L, T *value) {
-            auto args = perilune_totuple<std::remove_reference<ARGS>::type...>(L, 1);
+            auto args = perilune_totuple<remove_const_ref<ARGS>::type...>(L, 1);
             return internal::Applyer<R, T, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
         };
         m_methodMap.insert(std::make_pair(name, func));
