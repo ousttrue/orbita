@@ -174,7 +174,7 @@ struct LuaPush<T *>
     using PT = T *;
     static int Push(lua_State *L, T *value)
     {
-        auto p = (PT *)lua_newuserdata(L, sizeof(T));
+        auto p = (PT *)lua_newuserdata(L, sizeof(T *));
         auto pushedType = luaL_getmetatable(L, MetatableName<T *>::InstanceName());
         if (pushedType)
         {
