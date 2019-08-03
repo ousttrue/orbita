@@ -12,6 +12,9 @@ if not device then
     print("fail to Dx11.create")
     return
 end
+local context = dx11.get_context()
+print('dx11.get_context', context)
+
 
 while window.is_running() do
 
