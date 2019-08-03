@@ -4,13 +4,13 @@ header only lua binding
 
 ## features
 
-* [x] function table to registry
+* [x] this pointer by upvalue
 * [x] getter
 * [ ] setter
 * [ ] operator
 * [ ] indexer
 * [ ] generic typed array
-* [x] PointerType
+* [x] pointer type
 * [ ] metatable use hash
 * [x] return unknown pointer type to lightuesrdata
 * [x] return unknown value type to error
@@ -51,13 +51,15 @@ struct Vector3
         // lambda
         .StaticMethod("Zero", []() { return Vector3(); })
         .StaticMethod("Vector3", [](float x, float y, float z) { return Vector3(x, y, z); })
-        .Getter("x", [](const Vector3 &value) {
-            return value.x;
+        .IndexDispatcher([](auto d) {
+            d->Getter("x", [](const Vector3 &value) {
+                return value.x;
+            });
+            // member pointer
+            d->Getter("y", &Vector3::y);
+            d->Getter("z", &Vector3::z);
+            d->Method("sqnorm", &Vector3::SqNorm);
         })
-        // member pointer
-        .Getter("y", &Vector3::y)
-        .Getter("z", &Vector3::z)
-        .Method("sqnorm", &Vector3::SqNorm)
         // create and push lua stack
         .LuaNewType(lua.L);
     lua_setglobal(lua.L, "Vector3");
@@ -88,11 +90,14 @@ template specialized.
         .StaticMethod("new", []() {
             return new Win32Window;
         })
-        .Destructor([](Win32Window *p) {
+        .MetaMethod(perilune::MetaKey::__gc, [](Win32Window *p) {
             std::cerr << "destruct: " << p << std::endl;
             delete p;
         })
-        .Method("create", &Win32Window::Create)
-        .Method("is_running", &Win32Window::IsRunning)
+        .IndexDispatcher([](auto d) {
+            d->Method("create", &Win32Window::Create);
+            d->Method("is_running", &Win32Window::IsRunning);
+            d->Method("get_state", &Win32Window::GetState);
+        })
         .LuaNewType(lua.L);
 ```
