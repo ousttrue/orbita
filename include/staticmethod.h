@@ -6,18 +6,15 @@ namespace perilune
 
 class StaticMethodMap
 {
-    typedef std::function<int(lua_State *)> StaticMethod;
-
-    std::unordered_map<std::string, StaticMethod> m_methodMap;
+    std::unordered_map<std::string, LuaFunc> m_methodMap;
 
     template <typename F, typename C, typename R, typename... ARGS, std::size_t... IS>
-    void __StaticMethod(const char *name,
-                        const F &f,
-                        R (C::*m)(ARGS...) const,
-                        std::index_sequence<IS...>)
+    void _StaticMethod(const char *name,
+                       const F &f,
+                       R (C::*m)(ARGS...) const,
+                       std::index_sequence<IS...>)
     {
-        auto type = this;
-        auto func = [type, f](lua_State *L) {
+        auto func = [f](lua_State *L) {
             auto args = perilune_totuple<ARGS...>(L, 1);
             auto r = f(std::get<IS>(args)...);
             return LuaPush<R>::Push(L, r);
@@ -27,20 +24,42 @@ class StaticMethodMap
 
 public:
     template <typename F, typename C, typename R, typename... ARGS>
-    void _StaticMethod(const char *name, const F &f, R (C::*m)(ARGS...) const)
+    void StaticMethod(const char *name, const F &f, R (C::*m)(ARGS...) const)
     {
-        __StaticMethod(name, f, m,
-                       std::index_sequence_for<ARGS...>());
+        _StaticMethod(name, f, m,
+                      std::index_sequence_for<ARGS...>());
     }
 
-    StaticMethod Get(const char *key)
+    // stack#1: userdata
+    // stack#2: key
+    int Dispatch(lua_State *L)
     {
-        auto found = m_methodMap.find(key);
-        if (found == m_methodMap.end())
+        auto key = lua_tostring(L, 2);
+        if (key)
         {
-            return StaticMethod();
+            auto found = m_methodMap.find(key);
+            if (found != m_methodMap.end())
+            {
+                // upvalue#1
+                lua_pushlightuserdata(L, &found->second);
+
+                // return closure
+                lua_pushcclosure(L, &LuaFuncClosure, 1);
+                return 1;
+            }
+            else
+            {
+                lua_pushfstring(L, "'%s' not found", key);
+                lua_error(L);
+                return 1;
+            }
         }
-        return found->second;
+        else
+        {
+            lua_pushfstring(L, "unknown key type '%s'", lua_typename(L, 2));
+            lua_error(L);
+            return 1;
+        }
     }
 };
 

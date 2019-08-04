@@ -55,7 +55,7 @@ int main(int argc, char **argv)
             std::cerr << "destruct: " << p << std::endl;
             delete p;
         })
-        .IndexDispatcher([](auto d) {
+        .MetaIndexDispatcher([](auto d) {
             d->Method("create", &Win32Window::Create);
             d->Method("is_running", &Win32Window::IsRunning);
             d->Method("get_state", &Win32Window::GetState);
@@ -67,7 +67,7 @@ int main(int argc, char **argv)
     dx11
         .StaticMethod("new", []() { return new DX11Context; })
         .MetaMethod(perilune::MetaKey::__gc, [](DX11Context *p) { delete p; })
-        .IndexDispatcher([](auto d) {
+        .MetaIndexDispatcher([](auto d) {
             d->Method("create", &DX11Context::Create);
             d->Method("new_frame", &DX11Context::NewFrame);
             d->Method("present", &DX11Context::Present);

@@ -72,7 +72,7 @@ int main(int argc, char **argv)
         // lambda
         .StaticMethod("Zero", []() { return Vector3(); })
         .StaticMethod("Vector3", [](float x, float y, float z) { return Vector3(x, y, z); })
-        .IndexDispatcher([](auto d) {
+        .MetaIndexDispatcher([](auto d) {
             d->Getter("x", [](Vector3 *value) {
                 return value->x;
             });

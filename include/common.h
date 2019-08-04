@@ -128,4 +128,13 @@ static int LuaFuncClosure(lua_State *L)
     }
 }
 
+
+template <typename T>
+struct remove_const_ref
+{
+    using no_ref = typename std::remove_reference<T>::type;
+    using type = typename std::remove_const<no_ref>::type;
+};
+
+
 } // namespace perilune

@@ -4,6 +4,7 @@
 namespace perilune
 {
 
+
 template <typename T>
 class IndexDispatcher
 {
@@ -11,8 +12,6 @@ class IndexDispatcher
 
     IndexDispatcher(const IndexDispatcher &) = delete;
     IndexDispatcher &operator=(const IndexDispatcher &) = delete;
-
-    LuaFunc m_closure;
 
     struct Value
     {
@@ -23,25 +22,6 @@ class IndexDispatcher
 
     using LuaIndexGetterFunc = std::function<int(lua_State *, RawType *, lua_Integer)>;
     LuaIndexGetterFunc m_indexGetter;
-
-    // stack#1: userdata
-    // stack#2: key
-    int Dispatch(lua_State *L)
-    {
-        if (lua_isinteger(L, 2))
-        {
-            return DispatchIndex(L);
-        }
-
-        if (lua_isstring(L, 2))
-        {
-            return DispatchStringKey(L);
-        }
-
-        lua_pushfstring(L, "unknown key type '%s'", lua_typename(L, 2));
-        lua_error(L);
-        return 1;
-    }
 
     int DispatchIndex(lua_State *L)
     {
@@ -149,15 +129,29 @@ class IndexDispatcher
 public:
     IndexDispatcher()
     {
-        m_closure = std::bind(&IndexDispatcher::Dispatch, this, std::placeholders::_1);
     }
 
     ~IndexDispatcher() {}
 
-    LuaFunc *GetLuaFunc()
+    // stack#1: userdata
+    // stack#2: key
+    int Dispatch(lua_State *L)
     {
-        return &m_closure;
+        if (lua_isinteger(L, 2))
+        {
+            return DispatchIndex(L);
+        }
+
+        if (lua_isstring(L, 2))
+        {
+            return DispatchStringKey(L);
+        }
+
+        lua_pushfstring(L, "unknown key type '%s'", lua_typename(L, 2));
+        lua_error(L);
+        return 1;
     }
+
 
     // for member function pointer
     template <typename R, typename C, typename... ARGS>

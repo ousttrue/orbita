@@ -6,96 +6,51 @@ namespace perilune
 {
 
 template <typename T>
-struct remove_const_ref
-{
-    using no_ref = typename std::remove_reference<T>::type;
-    using type = typename std::remove_const<no_ref>::type;
-};
-
-template <typename T>
 class UserType
 {
     // nocopy
     UserType(const UserType &) = delete;
     UserType &operator=(const UserType &) = delete;
 
-    using RawType = typename Traits<T>::RawType;
-
-    // userdata dummy for Type
+    // static method dispatcher(simple static functions)
     struct UserTypeDummy
     {
     };
-
     StaticMethodMap m_staticMethods;
+    LuaFunc m_typeIndexClosure;
 
+    // instance method dispatcher(object methods bind this pointer)
     std::unordered_map<MetaKey, LuaFunc> m_metamethodMap;
+    IndexDispatcher<T> m_indexDispatcher;
+    LuaFunc m_instanceIndexClosure;
 
-    // stack 1:table(userdata), 2:key
-    static int TypeIndexDispatch(lua_State *L)
+public:
+    UserType()
     {
-        lua_pushcclosure(L, &UserType::TypeMethodDispatch, 2);
-        return 1;
+        m_typeIndexClosure = std::bind(&StaticMethodMap::Dispatch, &m_staticMethods, std::placeholders::_1);
+        m_instanceIndexClosure = std::bind(&IndexDispatcher<T>::Dispatch, &m_indexDispatcher, std::placeholders::_1);
     }
 
-    // upvalue 1:table(userdata), 2:key
-    static int TypeMethodDispatch(lua_State *L)
+    ~UserType()
     {
-        auto type = GetFromRegistry(L);
-        auto key = lua_tostring(L, lua_upvalueindex(2));
-
-        auto callback = type->m_staticMethods.Get(key);
-        if (callback)
-        {
-            return callback(L);
-        }
-
-        lua_pushfstring(L, "no %s method", key);
-        lua_error(L);
-        return 1;
+        std::cerr << "~" << MetatableName<T>::TypeName() << std::endl;
     }
 
-    static void LuaNewTypeMetaTable(lua_State *L)
+    // for lambda
+    template <typename F>
+    UserType &StaticMethod(const char *name, F f)
     {
-        assert(luaL_newmetatable(L, MetatableName<T>::TypeName()) == 1);
-        int metatable = lua_gettop(L);
-
-        lua_pushcfunction(L, &UserType::TypeIndexDispatch);
-        lua_setfield(L, metatable, "__index");
+        m_staticMethods.StaticMethod(name, f, &decltype(f)::operator());
+        return *this;
     }
 
-    void LuaNewInstanceMetaTable(lua_State *L)
+    UserType &LuaMetaMethod(MetaKey key, const LuaFunc &f)
     {
-        std::cerr << "create: " << MetatableName<T>::InstanceName() << std::endl;
-        luaL_newmetatable(L, MetatableName<T>::InstanceName());
-
-        // first time
-        int metatable = lua_gettop(L);
-
-        auto indexFunc = m_indexDispatcher.GetLuaFunc();
-        if (indexFunc)
-        {
-            lua_pushlightuserdata(L, indexFunc);
-            lua_pushcclosure(L, &LuaFuncClosure, 1);
-            lua_setfield(L, metatable, "__index");
-        }
-
-        for (auto &kv : m_metamethodMap)
-        {
-            lua_pushlightuserdata(L, &kv.second);
-            lua_pushcclosure(L, &LuaFuncClosure, 1);
-            lua_setfield(L, metatable, ToString(kv.first));
-        }
+        m_metamethodMap.insert(std::make_pair(key, f));
+        return *this;
     }
 
-    static UserType *GetFromRegistry(lua_State *L)
-    {
-        lua_pushlightuserdata(L, (void *)typeid(UserType).hash_code()); // key
-        lua_gettable(L, LUA_REGISTRYINDEX);
-        auto p = (UserType *)lua_touserdata(L, -1);
-        lua_pop(L, 1);
-        return p;
-    }
-
+private:
     template <typename F, typename R, typename C, typename... ARGS>
     void _MetaMethodLambda(MetaKey key, const F &f, R (C::*m)(ARGS...) const)
     {
@@ -119,28 +74,6 @@ class UserType
     }
 
 public:
-    UserType()
-    {
-    }
-    ~UserType()
-    {
-        std::cerr << "~" << MetatableName<T>::TypeName() << std::endl;
-    }
-
-    // for lambda
-    template <typename F>
-    UserType &StaticMethod(const char *name, F f)
-    {
-        m_staticMethods._StaticMethod(name, f, &decltype(f)::operator());
-        return *this;
-    }
-
-    UserType &LuaMetaMethod(MetaKey key, const LuaFunc &f)
-    {
-        m_metamethodMap.insert(std::make_pair(key, f));
-        return *this;
-    }
-
     template <typename F>
     UserType &MetaMethod(MetaKey key, F f)
     {
@@ -148,8 +81,7 @@ public:
         return *this;
     }
 
-    IndexDispatcher<T> m_indexDispatcher;
-    UserType &IndexDispatcher(const std::function<void(IndexDispatcher<T> *)> &f)
+    UserType &MetaIndexDispatcher(const std::function<void(IndexDispatcher<T> *)> &f)
     {
         f(&m_indexDispatcher);
         return *this;
@@ -163,12 +95,43 @@ public:
         lua_settable(L, LUA_REGISTRYINDEX);
 
         // create metatable for type userdata
-        LuaNewTypeMetaTable(L);
-        lua_pop(L, 1);
+        // LuaNewTypeMetaTable(L);
+        {
+            assert(luaL_newmetatable(L, MetatableName<T>::TypeName()) == 1);
+            int metatable = lua_gettop(L);
+
+            {
+                lua_pushlightuserdata(L, &m_typeIndexClosure);
+                lua_pushcclosure(L, &LuaFuncClosure, 1);
+                lua_setfield(L, metatable, "__index");
+            }
+
+            lua_pop(L, 1);
+        }
 
         // create metatable for instance userdata
-        LuaNewInstanceMetaTable(L);
-        lua_pop(L, 1);
+        // LuaNewInstanceMetaTable(L);
+        {
+            std::cerr << "create: " << MetatableName<T>::InstanceName() << std::endl;
+            luaL_newmetatable(L, MetatableName<T>::InstanceName());
+
+            // first time
+            int metatable = lua_gettop(L);
+
+            {
+                lua_pushlightuserdata(L, &m_instanceIndexClosure);
+                lua_pushcclosure(L, &LuaFuncClosure, 1);
+                lua_setfield(L, metatable, "__index");
+            }
+
+            for (auto &kv : m_metamethodMap)
+            {
+                lua_pushlightuserdata(L, &kv.second);
+                lua_pushcclosure(L, &LuaFuncClosure, 1);
+                lua_setfield(L, metatable, ToString(kv.first));
+            }
+            lua_pop(L, 1);
+        }
 
         {
             // push userdata for Type
@@ -180,7 +143,7 @@ public:
     }
 };
 
-// duck typing
+// for std::vector
 template <typename T>
 void AddDefaultMethods(UserType<T> &userType)
 {
@@ -190,7 +153,7 @@ void AddDefaultMethods(UserType<T> &userType)
         .MetaMethod(perilune::MetaKey::__len, [](T p) {
             return p->size();
         })
-        .IndexDispatcher([](perilune::IndexDispatcher<T> *d) {
+        .MetaIndexDispatcher([](perilune::IndexDispatcher<T> *d) {
             // upvalue#2: userdata
             d->LuaMethod("push_back", [](lua_State *L) {
                 auto value = perilune::Traits<T>::GetSelf(L, lua_upvalueindex(2));

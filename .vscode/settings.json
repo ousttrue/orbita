@@ -7,6 +7,7 @@
         "cerr",
         "dofile",
         "endl",
+        "isstring",
         "lightuesrdata",
         "metatable",
         "pushcclosure",
