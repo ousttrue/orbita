@@ -8,7 +8,7 @@ header only lua binding
 * [x] getter
 * [ ] setter
 * [ ] operator
-* [ ] indexer
+* [x] indexer
 * [ ] generic typed array
 * [x] pointer type
 * [ ] metatable use hash

@@ -210,7 +210,7 @@ struct LuaPush
             lua_pop(L, 1);
 
             // error
-            lua_pushfstring(L, "unknown type [%s]", MetatableName<T>::InstanceName());
+            lua_pushfstring(L, "push unknown type [%s]", MetatableName<T>::InstanceName());
             lua_error(L);
             return 1;
         }
@@ -286,6 +286,16 @@ struct LuaPush<bool>
 };
 
 template <>
+struct LuaPush<int32_t>
+{
+    static int Push(lua_State *L, int32_t n)
+    {
+        lua_pushinteger(L, n);
+        return 1;
+    }
+};
+
+template <>
 struct LuaPush<int64_t>
 {
     static int Push(lua_State *L, int64_t n)
@@ -335,12 +345,24 @@ struct LuaPush<void *>
     }
 };
 
+template <>
+struct LuaPush<std::string>
+{
+    static int Push(lua_State *L, const std::string &s)
+    {
+        lua_pushstring(L, s.c_str());
+        return 1;
+    }
+};
+
 template <typename T>
 struct LuaIndexer
 {
     static int Push(lua_State *L, T *t, lua_Integer luaIndex)
     {
-        return 0;
+        lua_pushfstring(L, "no integer index getter");
+        lua_error(L);
+        return 1;
     }
 };
 
@@ -542,7 +564,7 @@ static int LuaFuncClosure(lua_State *L)
     }
     catch (...)
     {
-        lua_pushfstring(L, "error");
+        lua_pushfstring(L, "error in closure");
         lua_error(L);
         return 1;
     }
@@ -564,6 +586,9 @@ class IndexDispatcher
         LuaFunc Body;
     };
     std::unordered_map<std::string, Value> m_map;
+
+    using LuaIndexGetterFunc = std::function<int(lua_State *, RawType *, lua_Integer)>;
+    LuaIndexGetterFunc m_indexGetter;
 
     // stack#1: userdata
     // stack#2: key
@@ -588,6 +613,11 @@ class IndexDispatcher
     {
         auto value = perilune::internal::Traits<T>::GetSelf(L, 1);
         auto index = lua_tointeger(L, 2);
+
+        if (m_indexGetter)
+        {
+            return m_indexGetter(L, value, index);
+        }
 
         return internal::LuaIndexer<RawType>::Push(L, value, index);
     }
@@ -658,15 +688,15 @@ class IndexDispatcher
     }
 
     template <typename F, typename C, typename R>
-    void _SetLambdaGetter(const char *name, const F &f, R (C::*)(const T &value) const)
+    void _SetLambdaGetter(const char *name, const F &f, R (C::*)(RawType *) const)
     {
         // stack#1: self
         LuaFunc func = [f](lua_State *L) {
             auto value = internal::Traits<T>::GetSelf(L, 1);
-            R r = f(*value);
+            R r = f(value);
             return internal::LuaPush<R>::Push(L, r);
         };
-        LuaMethod(name, func);
+        m_map.insert(std::make_pair(name, Value{false, func}));
     }
 
     // for field
@@ -679,7 +709,7 @@ class IndexDispatcher
             R r = value->*f;
             return internal::LuaPush<R>::Push(L, r);
         };
-        LuaMethod(name, func);
+        m_map.insert(std::make_pair(name, Value{false, func}));
     }
 
 public:
@@ -726,6 +756,27 @@ public:
     void Getter(const char *name, R C::*f)
     {
         _SetFieldGetter(name, f);
+    }
+
+    void LuaIndexGetter(const LuaIndexGetterFunc &indexGetter)
+    {
+        m_indexGetter = indexGetter;
+    }
+
+    template <typename F, typename R, typename C>
+    void _IndexGetter(const F &f, R (C::*m)(RawType *, int) const)
+    {
+        LuaIndexGetterFunc callback = [f](lua_State *L, RawType *l, lua_Integer i) {
+            R r = f(l, (int)i);
+            return internal::LuaPush<R>::Push(L, r);
+        };
+        LuaIndexGetter(callback);
+    }
+
+    template <typename F>
+    void IndexGetter(F f)
+    {
+        _IndexGetter(f, &decltype(f)::operator());
     }
 };
 
