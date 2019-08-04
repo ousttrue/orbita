@@ -73,8 +73,8 @@ int main(int argc, char **argv)
         .StaticMethod("Zero", []() { return Vector3(); })
         .StaticMethod("Vector3", [](float x, float y, float z) { return Vector3(x, y, z); })
         .IndexDispatcher([](auto d) {
-            d->Getter("x", [](const Vector3 &value) {
-                return value.x;
+            d->Getter("x", [](Vector3 *value) {
+                return value->x;
             });
             // member pointer
             d->Getter("y", &Vector3::y);

@@ -42,6 +42,19 @@
             "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false
+        },
+        {
+            "name": "sample tuple",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/samples/tuple/sample_tuple.exe",
+            "args": [
+                "${workspaceFolder}/samples/tuple/tuple.lua"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false
         }
     ]
 }
