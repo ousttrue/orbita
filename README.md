@@ -52,7 +52,7 @@ struct Vector3
         // lambda
         .StaticMethod("Zero", []() { return Vector3(); })
         .StaticMethod("Vector3", [](float x, float y, float z) { return Vector3(x, y, z); })
-        .IndexDispatcher([](auto d) {
+        .MetaIndexDispatcher([](auto d) {
             d->Getter("x", [](const Vector3 &value) {
                 return value.x;
             });
@@ -95,7 +95,7 @@ template specialized.
             std::cerr << "destruct: " << p << std::endl;
             delete p;
         })
-        .IndexDispatcher([](auto d) {
+        .MetaIndexDispatcher([](auto d) {
             d->Method("create", &Win32Window::Create);
             d->Method("is_running", &Win32Window::IsRunning);
             d->Method("get_state", &Win32Window::GetState);
