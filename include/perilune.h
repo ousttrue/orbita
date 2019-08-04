@@ -334,9 +334,36 @@ struct LuaPush<void *>
         return 1;
     }
 };
+
+template <typename T>
+struct LuaIndexer
+{
+    static int Push(lua_State *L, T *t, lua_Integer luaIndex)
+    {
+        return 0;
+    }
+};
+
+template <typename T>
+struct LuaIndexer<std::vector<T>>
+{
+    static int Push(lua_State *L, std::vector<T> *t, lua_Integer luaIndex)
+    {
+        auto index = luaIndex - 1;
+        if (index < 0)
+            return 0;
+        if (index >= (lua_Integer)t->size())
+            return 0;
+
+        auto value = (*t)[index];
+        return LuaPush<T>::Push(L, value);
+    }
+};
+
 #pragma endregion
 
 #pragma region get tuple
+
 template <typename T>
 struct LuaGet
 {
@@ -541,6 +568,31 @@ class IndexDispatcher
     // stack#1: userdata
     // stack#2: key
     int Dispatch(lua_State *L)
+    {
+        if (lua_isinteger(L, 2))
+        {
+            return DispatchIndex(L);
+        }
+
+        if (lua_isstring(L, 2))
+        {
+            return DispatchStringKey(L);
+        }
+
+        lua_pushfstring(L, "unknown key type '%s'", lua_typename(L, 2));
+        lua_error(L);
+        return 1;
+    }
+
+    int DispatchIndex(lua_State *L)
+    {
+        auto value = perilune::internal::Traits<T>::GetSelf(L, 1);
+        auto index = lua_tointeger(L, 2);
+
+        return internal::LuaIndexer<RawType>::Push(L, value, index);
+    }
+
+    int DispatchStringKey(lua_State *L)
     {
         auto key = lua_tostring(L, 2);
         auto found = m_map.find(key);
@@ -855,7 +907,6 @@ void AddDefaultMethods(UserType<T> &userType)
         .MetaMethod(perilune::MetaKey::__len, [](T p) {
             return p->size();
         })
-        // .MetaMethod(peri)
         .IndexDispatcher([](perilune::IndexDispatcher<T> *d) {
             // upvalue#2: userdata
             d->LuaMethod("push_back", [](lua_State *L) {

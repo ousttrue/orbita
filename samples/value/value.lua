@@ -17,4 +17,10 @@ print(n)
 local list = Vector3List.New()
 print(list, #list)
 list.push_back(v)
+list.push_back(v)
+list.push_back(v)
 print(list, #list)
+
+for i, x in ipairs(list) do
+    print(i, x)
+end
