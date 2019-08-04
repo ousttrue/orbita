@@ -614,7 +614,7 @@ class IndexDispatcher
             R r = f(*value);
             return internal::LuaPush<R>::Push(L, r);
         };
-        m_map.insert(std::make_pair(name, Value{false, func}));
+        LuaMethod(name, func);
     }
 
     // for field
@@ -627,7 +627,7 @@ class IndexDispatcher
             R r = value->*f;
             return internal::LuaPush<R>::Push(L, r);
         };
-        m_map.insert(std::make_pair(name, Value{false, func}));
+        LuaMethod(name, func);
     }
 
 public:
@@ -657,8 +657,7 @@ public:
         _ConstMethod(name, m, std::index_sequence_for<ARGS...>());
     }
 
-    // lambda
-    void Method(const char *name, const LuaFunc &func)
+    void LuaMethod(const char *name, const LuaFunc &func)
     {
         m_map.insert(std::make_pair(name, Value{true, func}));
     }
@@ -770,7 +769,7 @@ class UserType
             R r = f(*self);
             return internal::LuaPush<R>::Push(L, r);
         };
-        _MetaMethod(key, callback);
+        LuaMetaMethod(key, callback);
     }
 
     template <typename F, typename C, typename... ARGS>
@@ -781,7 +780,7 @@ class UserType
             f(*self);
             return 0;
         };
-        _MetaMethod(key, callback);
+        LuaMetaMethod(key, callback);
     }
 
 public:
@@ -801,7 +800,7 @@ public:
         return *this;
     }
 
-    UserType &_MetaMethod(MetaKey key, const LuaFunc &f)
+    UserType &LuaMetaMethod(MetaKey key, const LuaFunc &f)
     {
         m_metamethodMap.insert(std::make_pair(key, f));
         return *this;
@@ -856,9 +855,10 @@ void AddDefaultMethods(UserType<T> &userType)
         .MetaMethod(perilune::MetaKey::__len, [](T p) {
             return p->size();
         })
+        // .MetaMethod(peri)
         .IndexDispatcher([](perilune::IndexDispatcher<T> *d) {
             // upvalue#2: userdata
-            d->Method("push_back", [](lua_State *L) {
+            d->LuaMethod("push_back", [](lua_State *L) {
                 auto value = perilune::internal::Traits<T>::GetSelf(L, lua_upvalueindex(2));
                 auto v = perilune::internal::LuaGet<RawType::value_type>::Get(L, 1);
                 value->push_back(v);
