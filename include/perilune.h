@@ -39,6 +39,7 @@ enum class MetaKey
     __tostring,
     __call,
     __newindex,
+    __concat,
     // __index, use IndexDispatcher
 };
 
@@ -62,6 +63,8 @@ static const char *ToString(MetaKey key)
         return "__call";
     case MetaKey::__newindex:
         return "__newindex";
+    case MetaKey::__concat:
+        return "__concat";
     }
 
     throw std::exception("unknown key");
@@ -760,25 +763,25 @@ class UserType
     }
 
     template <typename F, typename R, typename C, typename... ARGS>
-    void _MetaMethod(MetaKey key, const F &f, R (C::*m)(ARGS...) const)
+    void _MetaMethodLambda(MetaKey key, const F &f, R (C::*m)(ARGS...) const)
     {
         auto callback = [f](lua_State *L) {
             auto self = internal::Traits<T>::GetData(L, 1);
             R r = f(*self);
             return internal::LuaPush<R>::Push(L, r);
         };
-        m_metamethodMap.insert(std::make_pair(key, callback));
+        _MetaMethod(key, callback);
     }
 
     template <typename F, typename C, typename... ARGS>
-    void _MetaMethod(MetaKey key, const F &f, void (C::*m)(ARGS...) const)
+    void _MetaMethodLambda(MetaKey key, const F &f, void (C::*m)(ARGS...) const)
     {
         auto callback = [f](lua_State *L) {
             auto self = internal::Traits<T>::GetData(L, 1);
             f(*self);
             return 0;
         };
-        m_metamethodMap.insert(std::make_pair(key, callback));
+        _MetaMethod(key, callback);
     }
 
 public:
@@ -798,10 +801,16 @@ public:
         return *this;
     }
 
+    UserType &_MetaMethod(MetaKey key, const LuaFunc &f)
+    {
+        m_metamethodMap.insert(std::make_pair(key, f));
+        return *this;
+    }
+
     template <typename F>
     UserType &MetaMethod(MetaKey key, F f)
     {
-        _MetaMethod(key, f, &decltype(f)::operator());
+        _MetaMethodLambda(key, f, &decltype(f)::operator());
         return *this;
     }
 
@@ -836,5 +845,26 @@ public:
         }
     }
 };
+
+// duck typing
+template <typename T>
+void AddDefaultMethods(UserType<T> &userType)
+{
+    using RawType = internal::Traits<T>::RawType;
+
+    userType
+        .MetaMethod(perilune::MetaKey::__len, [](T p) {
+            return p->size();
+        })
+        .IndexDispatcher([](perilune::IndexDispatcher<T> *d) {
+            // upvalue#2: userdata
+            d->Method("push_back", [](lua_State *L) {
+                auto value = perilune::internal::Traits<T>::GetSelf(L, lua_upvalueindex(2));
+                auto v = perilune::internal::LuaGet<RawType::value_type>::Get(L, 1);
+                value->push_back(v);
+                return 0;
+            });
+        });
+}
 
 } // namespace perilune
