@@ -52,32 +52,31 @@ public:
 
 private:
     template <typename F, typename R, typename C, typename... ARGS>
-    void _MetaMethodLambda(MetaKey key, const F &f, R (C::*m)(ARGS...) const)
+    LuaFunc _MetaMethodLambda(MetaKey key, const F &f, R (C::*m)(ARGS...) const)
     {
-        auto callback = [f](lua_State *L) {
-            auto self = Traits<T>::GetData(L, 1);
-            R r = f(*self);
+        return [f](lua_State *L) {
+            auto self = Traits<T>::GetSelf(L, 1);
+            R r = f(self);
             return LuaPush<R>::Push(L, r);
         };
-        LuaMetaMethod(key, callback);
     }
 
     template <typename F, typename C, typename... ARGS>
-    void _MetaMethodLambda(MetaKey key, const F &f, void (C::*m)(ARGS...) const)
+    LuaFunc _MetaMethodLambda(MetaKey key, const F &f, void (C::*m)(ARGS...) const)
     {
-        auto callback = [f](lua_State *L) {
-            auto self = Traits<T>::GetData(L, 1);
-            f(*self);
+        return [f](lua_State *L) {
+            auto self = Traits<T>::GetSelf(L, 1);
+            f(self);
             return 0;
         };
-        LuaMetaMethod(key, callback);
     }
 
 public:
     template <typename F>
     UserType &MetaMethod(MetaKey key, F f)
     {
-        _MetaMethodLambda(key, f, &decltype(f)::operator());
+        auto func = _MetaMethodLambda(key, f, &decltype(f)::operator());
+        LuaMetaMethod(key, func);
         return *this;
     }
 

@@ -77,12 +77,6 @@ struct Traits
         auto p = (T *)lua_touserdata(L, index);
         return p;
     }
-
-    // value type. only full userdata
-    static T *GetData(lua_State *L, int index)
-    {
-        return (T *)lua_touserdata(L, index);
-    }
 };
 
 // for pointer type
@@ -96,11 +90,6 @@ struct Traits<T *>
     static RawType *GetSelf(lua_State *L, int index)
     {
         return *(PT *)lua_touserdata(L, index);
-    }
-
-    static T **GetData(lua_State *L, int index)
-    {
-        return (PT *)lua_touserdata(L, index);
     }
 };
 
