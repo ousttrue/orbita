@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include "luafunc.h"
 
 namespace perilune
 {
@@ -50,32 +51,10 @@ public:
         return *this;
     }
 
-private:
-    template <typename F, typename R, typename C, typename... ARGS>
-    LuaFunc _MetaMethodLambda(MetaKey key, const F &f, R (C::*m)(ARGS...) const)
-    {
-        return [f](lua_State *L) {
-            auto self = Traits<T>::GetSelf(L, 1);
-            R r = f(self);
-            return LuaPush<R>::Push(L, r);
-        };
-    }
-
-    template <typename F, typename C, typename... ARGS>
-    LuaFunc _MetaMethodLambda(MetaKey key, const F &f, void (C::*m)(ARGS...) const)
-    {
-        return [f](lua_State *L) {
-            auto self = Traits<T>::GetSelf(L, 1);
-            f(self);
-            return 0;
-        };
-    }
-
-public:
     template <typename F>
     UserType &MetaMethod(MetaKey key, F f)
     {
-        auto func = _MetaMethodLambda(key, f, &decltype(f)::operator());
+        auto func = Stack1SelfMethod((T *)nullptr, key, f, &decltype(f)::operator());
         LuaMetaMethod(key, func);
         return *this;
     }

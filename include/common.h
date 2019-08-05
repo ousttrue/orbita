@@ -93,37 +93,11 @@ struct Traits<T *>
     }
 };
 
-
-using LuaFunc = std::function<int(lua_State *)>;
-static int LuaFuncClosure(lua_State *L)
-{
-    try
-    {
-        // execute logic from upvalue
-        auto func = (LuaFunc *)lua_touserdata(L, lua_upvalueindex(1));
-        return (*func)(L);
-    }
-    catch (const std::exception &ex)
-    {
-        lua_pushfstring(L, ex.what());
-        lua_error(L);
-        return 1;
-    }
-    catch (...)
-    {
-        lua_pushfstring(L, "error in closure");
-        lua_error(L);
-        return 1;
-    }
-}
-
-
 template <typename T>
 struct remove_const_ref
 {
     using no_ref = typename std::remove_reference<T>::type;
     using type = typename std::remove_const<no_ref>::type;
 };
-
 
 } // namespace perilune
