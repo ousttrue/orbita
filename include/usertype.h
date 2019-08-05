@@ -54,7 +54,7 @@ public:
     template <typename F>
     UserType &MetaMethod(MetaKey key, F f)
     {
-        auto lf = MethodSelfFromStack1((T *)nullptr, key, f, &decltype(f)::operator());
+        auto lf = MetaMethodSelfFromStack1((T *)nullptr, key, f, &decltype(f)::operator());
         m_metamethodMap.insert(std::make_pair(key, lf));
         return *this;
     }

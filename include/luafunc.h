@@ -43,7 +43,7 @@ LuaFunc ToLuaFunc(const char *name,
 #pragma region userdata by stack1
 
 template <typename T, typename F, typename R, typename C, typename... ARGS>
-LuaFunc MethodSelfFromStack1(T *, MetaKey key, const F &f, R (C::*m)(ARGS...) const)
+LuaFunc MetaMethodSelfFromStack1(T *, MetaKey key, const F &f, R (C::*m)(ARGS...) const)
 {
     // stack#1: userdata
     return [f](lua_State *L) {
@@ -55,7 +55,7 @@ LuaFunc MethodSelfFromStack1(T *, MetaKey key, const F &f, R (C::*m)(ARGS...) co
 
 // void
 template <typename T, typename F, typename C, typename... ARGS>
-LuaFunc MethodSelfFromStack1(T *, MetaKey key, const F &f, void (C::*m)(ARGS...) const)
+LuaFunc MetaMethodSelfFromStack1(T *, MetaKey key, const F &f, void (C::*m)(ARGS...) const)
 {
     // stack#1: userdata
     return [f](lua_State *L) {
