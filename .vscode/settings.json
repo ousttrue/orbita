@@ -3,6 +3,7 @@
         "Applyer",
         "LOGD",
         "TLIGHTUSERDATA",
+        "TTABLE",
         "TUSERDATA",
         "cerr",
         "dofile",

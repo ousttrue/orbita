@@ -25,3 +25,5 @@ for i, x in ipairs(list) do print(i, x) end
 
 local y = v + Vector3.New(1, 2, 3)
 print(y)
+local z = y + {1, 2, 3}
+print(z)

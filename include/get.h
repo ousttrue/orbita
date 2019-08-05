@@ -6,6 +6,17 @@ namespace perilune
 {
 
 template <typename T>
+struct LuaTable
+{
+    static T Get(lua_State *L, int index)
+    {
+        std::stringstream ss;
+        ss << "LuaTable<" << typeid(T).name() << "> is not implemented";
+        throw std::exception(ss.str().c_str());
+    }
+};
+
+template <typename T>
 struct LuaGet
 {
     static T Get(lua_State *L, int index)
@@ -15,9 +26,12 @@ struct LuaGet
         {
             return *(T *)lua_touserdata(L, index);
         }
+        else if (t == LUA_TTABLE)
+        {
+            return LuaTable<T>::Get(L, index);
+        }
         else
         {
-            // return nullptr;
             std::stringstream ss;
             ss << "LuaGet<" << typeid(T).name() << "> is " << lua_typename(L, t);
             throw std::exception(ss.str().c_str());
@@ -41,7 +55,9 @@ struct LuaGet<T *>
         else
         {
             // return nullptr;
-            throw std::exception("not implemented");
+            std::stringstream ss;
+            ss << "LuaGet<" << typeid(T).name() << "*> is " << lua_typename(L, t);
+            throw std::exception(ss.str().c_str());
         }
     }
 };

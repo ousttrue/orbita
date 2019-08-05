@@ -60,6 +60,37 @@ struct Vector3
     }
 };
 
+namespace perilune
+{
+
+template <>
+struct LuaTable<Vector3>
+{
+    static Vector3 Get(lua_State *L, int index)
+    {
+        Vector3 v;
+
+        lua_pushinteger(L, 1);
+        lua_gettable(L, -2);
+        v.x = (float)lua_tonumber(L, -1);
+        lua_pop(L, 1);
+
+        lua_pushinteger(L, 2);
+        lua_gettable(L, -2);
+        v.y = (float)lua_tonumber(L, -1);
+        lua_pop(L, 1);
+
+        lua_pushinteger(L, 3);
+        lua_gettable(L, -2);
+        v.z = (float)lua_tonumber(L, -1);
+        lua_pop(L, 1);
+
+        return v;
+    }
+};
+
+} // namespace perilune
+
 int main(int argc, char **argv)
 {
     if (argc == 1)
@@ -77,8 +108,8 @@ int main(int argc, char **argv)
         // lambda
         .StaticMethod("Zero", []() { return Vector3(); })
         .StaticMethod("New", [](float x, float y, float z) { return Vector3(x, y, z); })
-        .MetaMethod(perilune::MetaKey::__add, [](Vector3 *a, Vector3 *b) {
-            return *a + *b;
+        .MetaMethod(perilune::MetaKey::__add, [](Vector3 a, Vector3 b) {
+            return a + b;
         })
         .MetaMethod(perilune::MetaKey::__tostring, [](Vector3 *v) {
             std::stringstream ss;
