@@ -5,7 +5,6 @@
 namespace perilune
 {
 
-
 template <typename T>
 class IndexDispatcher
 {
@@ -78,55 +77,6 @@ class IndexDispatcher
         return 1;
     }
 
-    template <typename R, typename C, typename... ARGS, std::size_t... IS>
-    void _Method(const char *name, R (C::*m)(ARGS...), std::index_sequence<IS...>)
-    {
-        // upvalue#2: userdata
-        LuaFunc func = [m](lua_State *L) {
-            auto value = Traits<T>::GetSelf(L, lua_upvalueindex(2));
-            auto args = perilune_totuple<remove_const_ref<ARGS>::type...>(L, 1);
-            return Applyer<R, RawType, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
-        };
-        m_map.insert(std::make_pair(name, Value{true, func}));
-    }
-
-    template <typename R, typename C, typename... ARGS, std::size_t... IS>
-    void _ConstMethod(const char *name, R (C::*m)(ARGS...) const, std::index_sequence<IS...>)
-    {
-        // upvalue#2: userdata
-        LuaFunc func = [m](lua_State *L) {
-            auto value = Traits<T>::GetSelf(L, lua_upvalueindex(2));
-            auto args = perilune_totuple<ARGS...>(L, 1);
-            return ConstApplyer<R, RawType, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
-        };
-        m_map.insert(std::make_pair(name, Value{true, func}));
-    }
-
-    template <typename F, typename C, typename R>
-    void _SetLambdaGetter(const char *name, const F &f, R (C::*)(RawType *) const)
-    {
-        // stack#1: self
-        LuaFunc func = [f](lua_State *L) {
-            auto value = Traits<T>::GetSelf(L, 1);
-            R r = f(value);
-            return LuaPush<R>::Push(L, r);
-        };
-        m_map.insert(std::make_pair(name, Value{false, func}));
-    }
-
-    // for field
-    template <typename C, typename R>
-    void _SetFieldGetter(const char *name, R C::*f)
-    {
-        // stack#1: self
-        LuaFunc func = [f](lua_State *L) {
-            auto value = Traits<T>::GetSelf(L, 1);
-            R r = value->*f;
-            return LuaPush<R>::Push(L, r);
-        };
-        m_map.insert(std::make_pair(name, Value{false, func}));
-    }
-
 public:
     IndexDispatcher()
     {
@@ -153,19 +103,20 @@ public:
         return 1;
     }
 
-
     // for member function pointer
     template <typename R, typename C, typename... ARGS>
     void Method(const char *name, R (C::*m)(ARGS...))
     {
-        _Method(name, m, std::index_sequence_for<ARGS...>());
+        auto lf = MethodSelfFromUpvalue2((T *)nullptr, name, m, std::index_sequence_for<ARGS...>());
+        m_map.insert(std::make_pair(name, Value{true, lf}));
     }
 
     // for const member function pointer
     template <typename R, typename C, typename... ARGS>
     void Method(const char *name, R (C::*m)(ARGS...) const)
     {
-        _ConstMethod(name, m, std::index_sequence_for<ARGS...>());
+        auto lf = ConstMethodSelfFromUpvalue2((T *)nullptr, name, m, std::index_sequence_for<ARGS...>());
+        m_map.insert(std::make_pair(name, Value{true, lf}));
     }
 
     void LuaMethod(const char *name, const LuaFunc &func)
@@ -177,21 +128,19 @@ public:
     template <typename F>
     void Getter(const char *name, F f)
     {
-        _SetLambdaGetter(name, f, &decltype(f)::operator());
+        auto lf = LambdaGetterSelfFromStack1((T *)nullptr, name, f, &decltype(f)::operator());
+        m_map.insert(std::make_pair(name, Value{false, lf}));
     }
 
     // for member field pointer
     template <typename C, typename R>
     void Getter(const char *name, R C::*f)
     {
-        _SetFieldGetter(name, f);
+        auto lf = FieldGetterSelfFromStack1((T *)nullptr, name, f);
+        m_map.insert(std::make_pair(name, Value{false, lf}));
     }
 
-    void LuaIndexGetter(const LuaIndexGetterFunc &indexGetter)
-    {
-        m_indexGetter = indexGetter;
-    }
-
+private:
     template <typename F, typename R, typename C>
     void _IndexGetter(const F &f, R (C::*m)(RawType *, int) const)
     {
@@ -202,11 +151,17 @@ public:
         LuaIndexGetter(callback);
     }
 
+public:
     template <typename F>
     void IndexGetter(F f)
     {
         _IndexGetter(f, &decltype(f)::operator());
     }
+
+    void LuaIndexGetter(const LuaIndexGetterFunc &indexGetter)
+    {
+        m_indexGetter = indexGetter;
+    }
 };
 
-} // namespace prerilune
+} // namespace perilune

@@ -45,17 +45,17 @@ public:
         return *this;
     }
 
-    UserType &LuaMetaMethod(MetaKey key, const LuaFunc &f)
+    UserType &LuaMetaMethod(MetaKey key, const LuaFunc &lf)
     {
-        m_metamethodMap.insert(std::make_pair(key, f));
+        m_metamethodMap.insert(std::make_pair(key, lf));
         return *this;
     }
 
     template <typename F>
     UserType &MetaMethod(MetaKey key, F f)
     {
-        auto func = Stack1SelfMethod((T *)nullptr, key, f, &decltype(f)::operator());
-        LuaMetaMethod(key, func);
+        auto lf = MethodSelfFromStack1((T *)nullptr, key, f, &decltype(f)::operator());
+        m_metamethodMap.insert(std::make_pair(key, lf));
         return *this;
     }
 
@@ -108,6 +108,7 @@ public:
                 lua_pushcclosure(L, &LuaFuncClosure, 1);
                 lua_setfield(L, metatable, ToString(kv.first));
             }
+
             lua_pop(L, 1);
         }
 

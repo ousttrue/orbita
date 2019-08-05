@@ -10,8 +10,8 @@ inline int LuaFuncClosure(lua_State *L)
     try
     {
         // execute logic from upvalue
-        auto func = (LuaFunc *)lua_touserdata(L, lua_upvalueindex(1));
-        return (*func)(L);
+        auto lf = (LuaFunc *)lua_touserdata(L, lua_upvalueindex(1));
+        return (*lf)(L);
     }
     catch (const std::exception &ex)
     {
@@ -27,9 +27,25 @@ inline int LuaFuncClosure(lua_State *L)
     }
 }
 
-template <typename T, typename F, typename R, typename C, typename... ARGS>
-LuaFunc Stack1SelfMethod(T *, MetaKey key, const F &f, R (C::*m)(ARGS...) const)
+template <typename F, typename C, typename R, typename... ARGS, std::size_t... IS>
+LuaFunc ToLuaFunc(const char *name,
+                     const F &f,
+                     R (C::*m)(ARGS...) const,
+                     std::index_sequence<IS...>)
 {
+    return [f](lua_State *L) {
+        auto args = perilune_totuple<ARGS...>(L, 1);
+        auto r = f(std::get<IS>(args)...);
+        return LuaPush<R>::Push(L, r);
+    };
+}
+
+#pragma region userdata by stack1
+
+template <typename T, typename F, typename R, typename C, typename... ARGS>
+LuaFunc MethodSelfFromStack1(T *, MetaKey key, const F &f, R (C::*m)(ARGS...) const)
+{
+    // stack#1: userdata
     return [f](lua_State *L) {
         auto self = Traits<T>::GetSelf(L, 1);
         R r = f(self);
@@ -39,13 +55,69 @@ LuaFunc Stack1SelfMethod(T *, MetaKey key, const F &f, R (C::*m)(ARGS...) const)
 
 // void
 template <typename T, typename F, typename C, typename... ARGS>
-LuaFunc Stack1SelfMethod(T *, MetaKey key, const F &f, void (C::*m)(ARGS...) const)
+LuaFunc MethodSelfFromStack1(T *, MetaKey key, const F &f, void (C::*m)(ARGS...) const)
 {
+    // stack#1: userdata
     return [f](lua_State *L) {
         auto self = Traits<T>::GetSelf(L, 1);
         f(self);
         return 0;
     };
 }
+
+template <typename T, typename F, typename C, typename R>
+LuaFunc LambdaGetterSelfFromStack1(T *, const char *name, const F &f, R (C::*)(typename Traits<T>::RawType *) const)
+{
+    // stack#1: userdata
+    return [f](lua_State *L) {
+        auto value = Traits<T>::GetSelf(L, 1);
+        R r = f(value);
+        return LuaPush<R>::Push(L, r);
+    };
+}
+
+// for field
+template <typename T, typename C, typename R>
+LuaFunc FieldGetterSelfFromStack1(T *, const char *name, R C::*f)
+{
+    // stack#1: userdata
+    return [f](lua_State *L) {
+        auto value = Traits<T>::GetSelf(L, 1);
+        R r = value->*f;
+        return LuaPush<R>::Push(L, r);
+    };
+}
+
+#pragma endregion
+
+#pragma region userdata by upvalue2
+
+template <typename T, typename R, typename C, typename... ARGS, std::size_t... IS>
+LuaFunc MethodSelfFromUpvalue2(T *, const char *name, R (C::*m)(ARGS...), std::index_sequence<IS...>)
+{
+    using RawType = typename Traits<T>::RawType;
+
+    // upvalue#2: userdata
+    return [m](lua_State *L) {
+        auto value = Traits<T>::GetSelf(L, lua_upvalueindex(2));
+        auto args = perilune_totuple<remove_const_ref<ARGS>::type...>(L, 1);
+        return Applyer<R, RawType, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
+    };
+}
+
+template <typename T, typename R, typename C, typename... ARGS, std::size_t... IS>
+LuaFunc ConstMethodSelfFromUpvalue2(T *, const char *name, R (C::*m)(ARGS...) const, std::index_sequence<IS...>)
+{
+    using RawType = typename Traits<T>::RawType;
+
+    // upvalue#2: userdata
+    return [m](lua_State *L) {
+        auto value = Traits<T>::GetSelf(L, lua_upvalueindex(2));
+        auto args = perilune_totuple<ARGS...>(L, 1);
+        return ConstApplyer<R, RawType, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
+    };
+}
+
+#pragma endregion
 
 } // namespace perilune
