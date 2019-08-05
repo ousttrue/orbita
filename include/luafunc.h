@@ -5,6 +5,20 @@ namespace perilune
 {
 
 using LuaFunc = std::function<int(lua_State *)>;
+/// usage
+///
+/// LuaFunc lf; // function body
+/// lua_pushlightuserdata(L, &lf); // upvalue #1
+/// lua_pushcclosure(L, &LuaFuncClosure, 1); // closure
+/// return 1;
+///
+/// [additional upvalue]
+/// LuaFunc lf; // function body
+/// lua_pushlightuserdata(L, &lf); // upvalue #1
+/// lua_pushlightuserdata(L, this); // upvalue #2
+/// lua_pushcclosure(L, &LuaFuncClosure, 2); // closure
+/// return 1;
+///
 inline int LuaFuncClosure(lua_State *L)
 {
     try
@@ -29,9 +43,9 @@ inline int LuaFuncClosure(lua_State *L)
 
 template <typename F, typename C, typename R, typename... ARGS, std::size_t... IS>
 LuaFunc ToLuaFunc(const char *name,
-                     const F &f,
-                     R (C::*m)(ARGS...) const,
-                     std::index_sequence<IS...>)
+                  const F &f,
+                  R (C::*m)(ARGS...) const,
+                  std::index_sequence<IS...>)
 {
     return [f](lua_State *L) {
         auto args = perilune_totuple<ARGS...>(L, 1);
