@@ -49,6 +49,11 @@ struct Vector3
     {
     }
 
+    Vector3 operator+(const Vector3 &v) const
+    {
+        return Vector3(x + v.x, y + v.y, z + v.z);
+    }
+
     float SqNorm() const
     {
         return x * x + y * y + z * z;
@@ -71,7 +76,15 @@ int main(int argc, char **argv)
     vector3Type
         // lambda
         .StaticMethod("Zero", []() { return Vector3(); })
-        .StaticMethod("Vector3", [](float x, float y, float z) { return Vector3(x, y, z); })
+        .StaticMethod("New", [](float x, float y, float z) { return Vector3(x, y, z); })
+        .MetaMethod(perilune::MetaKey::__add, [](Vector3 *a, Vector3 *b) {
+            return *a + *b;
+        })
+        .MetaMethod(perilune::MetaKey::__tostring, [](Vector3 *v) {
+            std::stringstream ss;
+            ss << "[" << v->x << ", " << v->y << ", " << v->z << "]";
+            return ss.str();
+        })
         .MetaIndexDispatcher([](auto d) {
             d->Getter("x", [](Vector3 *value) {
                 return value->x;

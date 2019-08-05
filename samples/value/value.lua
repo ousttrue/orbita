@@ -6,7 +6,7 @@ local zero = Vector3.Zero()
 print(zero)
 print(zero.x)
 
-local v = Vector3.Vector3(1, 2, 3)
+local v = Vector3.New(1, 2, 3)
 print(v)
 print(v.x)
 print(v.y)
@@ -21,6 +21,7 @@ list.push_back(v)
 list.push_back(v)
 print(list, #list)
 
-for i, x in ipairs(list) do
-    print(i, x)
-end
+for i, x in ipairs(list) do print(i, x) end
+
+local y = v + Vector3.New(1, 2, 3)
+print(y)

@@ -13,12 +13,12 @@ class IndexDispatcher
     IndexDispatcher(const IndexDispatcher &) = delete;
     IndexDispatcher &operator=(const IndexDispatcher &) = delete;
 
-    struct Value
+    struct MetaValue
     {
         bool IsFunction = false;
         LuaFunc Body;
     };
-    std::unordered_map<std::string, Value> m_map;
+    std::unordered_map<std::string, MetaValue> m_map;
 
     using LuaIndexGetterFunc = std::function<int(lua_State *, RawType *, lua_Integer)>;
     LuaIndexGetterFunc m_indexGetter;
@@ -108,7 +108,7 @@ public:
     void Method(const char *name, R (C::*m)(ARGS...))
     {
         auto lf = MethodSelfFromUpvalue2((T *)nullptr, name, m, std::index_sequence_for<ARGS...>());
-        m_map.insert(std::make_pair(name, Value{true, lf}));
+        m_map.insert(std::make_pair(name, MetaValue{true, lf}));
     }
 
     // for const member function pointer
@@ -116,12 +116,12 @@ public:
     void Method(const char *name, R (C::*m)(ARGS...) const)
     {
         auto lf = ConstMethodSelfFromUpvalue2((T *)nullptr, name, m, std::index_sequence_for<ARGS...>());
-        m_map.insert(std::make_pair(name, Value{true, lf}));
+        m_map.insert(std::make_pair(name, MetaValue{true, lf}));
     }
 
     void LuaMethod(const char *name, const LuaFunc &func)
     {
-        m_map.insert(std::make_pair(name, Value{true, func}));
+        m_map.insert(std::make_pair(name, MetaValue{true, func}));
     }
 
     // for lambda
@@ -129,7 +129,7 @@ public:
     void Getter(const char *name, F f)
     {
         auto lf = LambdaGetterSelfFromStack1((T *)nullptr, name, f, &decltype(f)::operator());
-        m_map.insert(std::make_pair(name, Value{false, lf}));
+        m_map.insert(std::make_pair(name, MetaValue{false, lf}));
     }
 
     // for member field pointer
@@ -137,7 +137,7 @@ public:
     void Getter(const char *name, R C::*f)
     {
         auto lf = FieldGetterSelfFromStack1((T *)nullptr, name, f);
-        m_map.insert(std::make_pair(name, Value{false, lf}));
+        m_map.insert(std::make_pair(name, MetaValue{false, lf}));
     }
 
 private:

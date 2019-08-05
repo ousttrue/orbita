@@ -204,4 +204,4 @@ struct LuaIndexer<std::vector<T>>
     }
 };
 
-} // namespace prelune
+} // namespace perilune

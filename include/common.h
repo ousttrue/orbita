@@ -23,6 +23,7 @@ enum class MetaKey
     __tostring,
     __call,
     __newindex,
+    __add,
     __concat,
     // __index, use IndexDispatcher
 };
@@ -45,6 +46,8 @@ static const char *ToString(MetaKey key)
         return "__call";
     case MetaKey::__newindex:
         return "__newindex";
+    case MetaKey::__add:
+        return "__add";
     case MetaKey::__concat:
         return "__concat";
     }
