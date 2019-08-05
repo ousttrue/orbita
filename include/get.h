@@ -95,25 +95,25 @@ struct LuaGet<std::wstring>
     }
 };
 
-std::tuple<> perilune_totuple(lua_State *L, int index, std::tuple<> *)
+std::tuple<> LuaArgsToTuple(lua_State *L, int index, std::tuple<> *)
 {
     return std::tuple<>();
 }
 
 template <typename A, typename... ARGS>
-std::tuple<A, ARGS...> perilune_totuple(lua_State *L, int index, std::tuple<A, ARGS...> *)
+std::tuple<A, ARGS...> LuaArgsToTuple(lua_State *L, int index, std::tuple<A, ARGS...> *)
 {
     A a = LuaGet<A>::Get(L, index);
     std::tuple<A> t = std::make_tuple(a);
     return std::tuple_cat(std::move(t),
-                          perilune_totuple<ARGS...>(L, index + 1));
+                          LuaArgsToTuple<ARGS...>(L, index + 1));
 }
 
 template <typename... ARGS>
-std::tuple<ARGS...> perilune_totuple(lua_State *L, int index)
+std::tuple<ARGS...> LuaArgsToTuple(lua_State *L, int index)
 {
     std::tuple<ARGS...> *p = nullptr;
-    return perilune_totuple(L, index, p);
+    return LuaArgsToTuple(L, index, p);
 }
 
 } // namespace perilune

@@ -48,7 +48,7 @@ LuaFunc ToLuaFunc(const char *name,
                   std::index_sequence<IS...>)
 {
     return [f](lua_State *L) {
-        auto args = perilune_totuple<ARGS...>(L, 1);
+        auto args = LuaArgsToTuple<ARGS...>(L, 1);
         auto r = f(std::get<IS>(args)...);
         return LuaPush<R>::Push(L, r);
     };
@@ -114,7 +114,7 @@ LuaFunc MethodSelfFromUpvalue2(T *, const char *name, R (C::*m)(ARGS...), std::i
     // upvalue#2: userdata
     return [m](lua_State *L) {
         auto value = Traits<T>::GetSelf(L, lua_upvalueindex(2));
-        auto args = perilune_totuple<remove_const_ref<ARGS>::type...>(L, 1);
+        auto args = LuaArgsToTuple<remove_const_ref<ARGS>::type...>(L, 1);
         return Applyer<R, RawType, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
     };
 }
@@ -127,7 +127,7 @@ LuaFunc ConstMethodSelfFromUpvalue2(T *, const char *name, R (C::*m)(ARGS...) co
     // upvalue#2: userdata
     return [m](lua_State *L) {
         auto value = Traits<T>::GetSelf(L, lua_upvalueindex(2));
-        auto args = perilune_totuple<ARGS...>(L, 1);
+        auto args = LuaArgsToTuple<ARGS...>(L, 1);
         return ConstApplyer<R, RawType, ARGS...>::Apply(L, value, m, std::get<IS>(args)...);
     };
 }
