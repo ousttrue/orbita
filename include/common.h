@@ -100,4 +100,17 @@ struct remove_const_ref
     using type = typename std::remove_const<no_ref>::type;
 };
 
+template <typename Tuple, std::size_t... Is>
+auto pop_front_impl(const Tuple &tuple, std::index_sequence<Is...>)
+{
+    return std::make_tuple(std::get<1 + Is>(tuple)...);
+}
+
+template <typename Tuple>
+auto pop_front(const Tuple &tuple)
+{
+    return pop_front_impl(tuple,
+                          std::make_index_sequence<std::tuple_size<Tuple>::value - 1>());
+}
+
 } // namespace perilune

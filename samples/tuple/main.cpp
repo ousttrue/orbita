@@ -1,4 +1,5 @@
 #include <iostream>
+#include <functional>
 
 template <auto M, typename R, typename C, typename... ARGS>
 constexpr auto _OpenMethod(R (C::*m)(ARGS...))
@@ -30,15 +31,30 @@ struct Some
     }
 };
 
+static int add(int a, int b)
+{
+    return a + b;
+}
+
 int main()
 {
-    constexpr auto f = OpenMethod<&Some::Plus>();
-
-    Some some;
-    some.Plus(1);
-
-    auto result = f(&some, 2);
-    std::cout << result << std::endl;
+    auto tuple = std::make_tuple(1, 2);
+    {
+        auto result = std::apply(&add, tuple);
+        std::cout << result << std::endl;
+    }
+    {
+        auto lambda = [](int a, int b) {
+            return a + b;
+        };
+        auto result = std::apply(lambda, tuple);
+        std::cout << result << std::endl;
+    }
+    {
+        std::function<int(int, int)> f = &add;
+        auto result = std::apply(f, tuple);
+        std::cout << result << std::endl;
+    }
 
     return 0;
 }

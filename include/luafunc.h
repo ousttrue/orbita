@@ -62,7 +62,9 @@ LuaFunc MetaMethodSelfFromStack1(T *, MetaKey key, const F &f, R (C::*m)(ARGS...
     // stack#1: userdata
     return [f](lua_State *L) {
         auto self = Traits<T>::GetSelf(L, 1);
-        R r = f(self);
+        auto cdr = pop_front(LuaArgsToTuple<ARGS...>(L, 1));
+        auto args = std::tuple_cat(std::make_tuple(self), cdr);
+        R r = std::apply(f, args);
         return LuaPush<R>::Push(L, r);
     };
 }
@@ -74,7 +76,9 @@ LuaFunc MetaMethodSelfFromStack1(T *, MetaKey key, const F &f, void (C::*m)(ARGS
     // stack#1: userdata
     return [f](lua_State *L) {
         auto self = Traits<T>::GetSelf(L, 1);
-        f(self);
+        auto cdr = pop_front(LuaArgsToTuple<ARGS...>(L, 1));
+        auto args = std::tuple_cat(std::make_tuple(self), cdr);
+        std::apply(f, args);
         return 0;
     };
 }
