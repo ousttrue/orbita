@@ -34,7 +34,7 @@ public:
 
     ~UserType()
     {
-        std::cerr << "~" << MetatableName<T>::TypeName() << std::endl;
+        // std::cerr << "~" << MetatableName<T>::TypeName() << std::endl;
     }
 
     // for lambda
@@ -90,7 +90,7 @@ public:
         // create metatable for instance userdata
         // LuaNewInstanceMetaTable(L);
         {
-            std::cerr << "create: " << MetatableName<T>::InstanceName() << std::endl;
+            // std::cerr << "create: " << MetatableName<T>::InstanceName() << std::endl;
             luaL_newmetatable(L, MetatableName<T>::InstanceName());
 
             // first time
