@@ -138,6 +138,39 @@ LuaFunc ConstMethodSelfFromUpvalue2(T *, const char *name, R (C::*m)(ARGS...) co
     };
 }
 
+template <typename A0, typename... ARGS>
+std::tuple<ARGS...> SkipFirstLuaArgsToTuple(lua_State *L, int index)
+{
+    return LuaArgsToTuple<ARGS...>(L, index);
+}
+
+template <typename T, typename F, typename R, typename C, typename... ARGS>
+LuaFunc LambdaMethodSelfFromUpvalue2(T *, const char *name, const F &f, R (C::*)(ARGS...) const)
+{
+    // upvalue#2: userdata
+    return [f](lua_State *L) {
+        auto value = Traits<T>::GetSelf(L, lua_upvalueindex(2));
+        auto cdr = SkipFirstLuaArgsToTuple<ARGS...>(L, 1);
+        auto args = std::tuple_cat(std::make_tuple(value), cdr);
+        R r = std::apply(f, args);
+        return LuaPush<R>::Push(L, r);
+    };
+}
+
+// void
+template <typename T, typename F, typename C, typename... ARGS>
+LuaFunc LambdaMethodSelfFromUpvalue2(T *, const char *name, const F &f, void (C::*)(ARGS...) const)
+{
+    // upvalue#2: userdata
+    return [f](lua_State *L) {
+        auto value = Traits<T>::GetSelf(L, lua_upvalueindex(2));
+        auto cdr = SkipFirstLuaArgsToTuple<ARGS...>(L, 1);
+        auto args = std::tuple_cat(std::make_tuple(value), cdr);
+        std::apply(f, args);
+        return 0;
+    };
+}
+
 #pragma endregion
 
 } // namespace perilune

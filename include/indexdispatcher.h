@@ -119,6 +119,13 @@ public:
         m_map.insert(std::make_pair(name, MetaValue{true, lf}));
     }
 
+    template <typename F>
+    void Method(const char *name, F f)
+    {
+        auto lf = LambdaMethodSelfFromUpvalue2((T *)nullptr, name, f, &decltype(f)::operator());
+        m_map.insert(std::make_pair(name, MetaValue{true, lf}));
+    }
+
     void LuaMethod(const char *name, const LuaFunc &func)
     {
         m_map.insert(std::make_pair(name, MetaValue{true, func}));
