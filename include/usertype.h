@@ -102,6 +102,8 @@ public:
                 lua_setfield(L, metatable, "__index");
             }
 
+            Traits<T>::SetPlacementDelete(L, metatable);
+
             for (auto &kv : m_metamethodMap)
             {
                 lua_pushlightuserdata(L, &kv.second);

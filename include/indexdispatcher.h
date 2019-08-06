@@ -20,8 +20,8 @@ class IndexDispatcher
     };
     std::unordered_map<std::string, MetaValue> m_map;
 
-    using LuaIndexGetterFunc = std::function<int(lua_State *, RawType *, lua_Integer)>;
-    LuaIndexGetterFunc m_indexGetter;
+    // using LuaIndexGetterFunc = std::function<int(lua_State *, RawType *, lua_Integer)>;
+    LuaFunc m_indexGetter;
 
     int DispatchIndex(lua_State *L)
     {
@@ -30,7 +30,7 @@ class IndexDispatcher
 
         if (m_indexGetter)
         {
-            return m_indexGetter(L, value, index);
+            return m_indexGetter(L);
         }
 
         return LuaIndexer<RawType>::Push(L, value, index);
@@ -141,11 +141,14 @@ public:
     }
 
 private:
-    template <typename F, typename R, typename C>
-    void _IndexGetter(const F &f, R (C::*m)(RawType *, int) const)
+    template <typename F, typename R, typename C, typename... ARGS>
+    void _IndexGetter(const F &f, R (C::*m)(ARGS...) const)
     {
-        LuaIndexGetterFunc callback = [f](lua_State *L, RawType *l, lua_Integer i) {
-            R r = f(l, (int)i);
+        LuaFunc callback = [f](lua_State *L) {
+            auto self = perilune::Traits<T>::GetSelf(L, 1);
+            auto cdr = pop_front(LuaArgsToTuple<ARGS...>(L, 1));
+            auto args = std::tuple_cat(std::make_tuple(self), cdr);
+            R r = std::apply(f, args);
             return LuaPush<R>::Push(L, r);
         };
         LuaIndexGetter(callback);
@@ -158,7 +161,7 @@ public:
         _IndexGetter(f, &decltype(f)::operator());
     }
 
-    void LuaIndexGetter(const LuaIndexGetterFunc &indexGetter)
+    void LuaIndexGetter(const LuaFunc &indexGetter)
     {
         m_indexGetter = indexGetter;
     }

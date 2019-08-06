@@ -80,6 +80,19 @@ struct Traits
         auto p = (T *)lua_touserdata(L, index);
         return p;
     }
+
+    static int Destruct(lua_State *L)
+    {
+        auto self = GetSelf(L, 1);
+        self->~T();
+        return 0;
+    }
+
+    static void SetPlacementDelete(lua_State *L, int index)
+    {
+        lua_pushcfunction(L, &Destruct);
+        lua_setfield(L, index, "__gc");
+    }
 };
 
 // for pointer type
@@ -93,6 +106,11 @@ struct Traits<T *>
     static RawType *GetSelf(lua_State *L, int index)
     {
         return *(PT *)lua_touserdata(L, index);
+    }
+
+    static void SetPlacementDelete(lua_State *L, int index)
+    {
+        // do nothing
     }
 };
 

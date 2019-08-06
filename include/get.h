@@ -101,6 +101,7 @@ struct LuaGet<std::string>
         }
     }
 };
+
 template <>
 struct LuaGet<std::wstring>
 {
@@ -111,6 +112,7 @@ struct LuaGet<std::wstring>
     }
 };
 
+#pragma region LuaArgsToTuple
 std::tuple<> LuaArgsToTuple(lua_State *L, int index, std::tuple<> *)
 {
     return std::tuple<>();
@@ -131,5 +133,41 @@ std::tuple<ARGS...> LuaArgsToTuple(lua_State *L, int index)
     std::tuple<ARGS...> *p = nullptr;
     return LuaArgsToTuple(L, index, p);
 }
+
+#pragma endregion
+
+#pragma region LuaTableToTuple
+template <typename T>
+static T LuaTableGet(lua_State *L, int index, int tableIndex)
+{
+    lua_pushinteger(L, tableIndex);
+    lua_gettable(L, index);
+    auto &t = LuaGet<T>::Get(L, -1);
+    lua_pop(L, 1);
+    return t;
+}
+
+std::tuple<> LuaTableToTuple(lua_State *L, int index, int tableIndex, std::tuple<> *)
+{
+    return std::tuple<>();
+}
+
+template <typename A, typename... ARGS>
+std::tuple<A, ARGS...> LuaTableToTuple(lua_State *L, int index, int tableIndex, std::tuple<A, ARGS...> *)
+{
+    A a = LuaTableGet<A>(L, index, tableIndex);
+    std::tuple<A> t = std::make_tuple(a);
+    return std::tuple_cat(std::move(t),
+                          LuaTableToTuple<ARGS...>(L, index, tableIndex + 1));
+}
+
+template <typename... ARGS>
+std::tuple<ARGS...> LuaTableToTuple(lua_State *L, int index, int tableIndex = 1)
+{
+    std::tuple<ARGS...> *p = nullptr;
+    return LuaTableToTuple(L, index, tableIndex, p);
+}
+
+#pragma endregion
 
 } // namespace perilune

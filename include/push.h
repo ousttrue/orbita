@@ -18,11 +18,13 @@ struct LuaPush
     static int Push(lua_State *L, const T &value)
     {
         auto p = (T *)lua_newuserdata(L, sizeof(T));
+        // memset(p, 0, sizeof(T));
         auto pushedType = luaL_getmetatable(L, MetatableName<T>::InstanceName());
         if (pushedType)
         {
             // set metatable to type userdata
             lua_setmetatable(L, -2);
+            new(p) T; // initialize. see Traits::Destruct
             *p = value;
             return 1;
         }
@@ -77,6 +79,7 @@ struct LuaPush<T &>
     static int Push(lua_State *L, const T &value)
     {
         auto p = (PT *)lua_newuserdata(L, sizeof(T));
+        memset(p, 0, sizeof(T));
         auto pushedType = luaL_getmetatable(L, MetatableName<T *>::InstanceName());
         if (pushedType)
         {
