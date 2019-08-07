@@ -37,6 +37,14 @@ public:
         // std::cerr << "~" << MetatableName<T>::TypeName() << std::endl;
     }
 
+    UserType &DefaultConstructorAndDestructor()
+    {
+        using RawType = typename Traits<T>::RawType;
+        StaticMethod("new", []() { return new RawType; });
+        MetaMethod(perilune::MetaKey::__gc, [](T p) { delete p; });
+        return *this;
+    }
+
     // for lambda
     template <typename F>
     UserType &StaticMethod(const char *name, F f)

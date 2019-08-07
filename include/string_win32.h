@@ -6,7 +6,7 @@ namespace perilune
 #include <Windows.h>
 #include <string>
 
-std::wstring utf8_to_wstring(const std::string &src)
+inline std::wstring utf8_to_wstring(const std::string &src)
 {
     auto required = MultiByteToWideChar(CP_UTF8, 0, src.data(), (int)src.size(), nullptr, 0);
     std::wstring dst(required, 0);

@@ -115,8 +115,17 @@ struct LuaGet<std::wstring>
     }
 };
 
+template <typename... ARGS>
+struct LuaGet<std::tuple<ARGS...>>
+{
+    static std::tuple<ARGS...> Get(lua_State *L, int index)
+    {
+        return LuaTableToTuple<ARGS...>(L, index, 1);
+    }
+};
+
 #pragma region LuaArgsToTuple
-std::tuple<> LuaArgsToTuple(lua_State *L, int index, std::tuple<> *)
+inline std::tuple<> LuaArgsToTuple(lua_State *L, int index, std::tuple<> *)
 {
     return std::tuple<>();
 }
@@ -145,12 +154,12 @@ static T LuaTableGet(lua_State *L, int index, int tableIndex)
 {
     lua_pushinteger(L, tableIndex);
     lua_gettable(L, index);
-    auto &t = LuaGet<T>::Get(L, -1);
+    auto t = LuaGet<T>::Get(L, -1);
     lua_pop(L, 1);
     return t;
 }
 
-std::tuple<> LuaTableToTuple(lua_State *L, int index, int tableIndex, std::tuple<> *)
+inline std::tuple<> LuaTableToTuple(lua_State *L, int index, int tableIndex, std::tuple<> *)
 {
     return std::tuple<>();
 }
