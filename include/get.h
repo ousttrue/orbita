@@ -48,7 +48,7 @@ struct LuaGet<T *>
         {
             // auto p = (T *)lua_touserdata(L, index);
             // return p;
-            return Traits<T>::GetSelf(L, index);
+            return Traits<T *>::GetSelf(L, index);
         }
         else if (t == LUA_TLIGHTUSERDATA)
         {
