@@ -11,10 +11,11 @@ header only lua binding
 * [x] operator
 * [x] indexer
 * [x] pointer type
+* [ ] std::shared_ptr
 * [ ] metatable use hash
 * [x] return unknown pointer type to lightuesrdata
 * [x] return unknown value type to error
-* [ ] placement new
+* [x] placement new
 * [ ] generic typed array
 
 ## usage

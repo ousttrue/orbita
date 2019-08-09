@@ -15,6 +15,30 @@ namespace perilune
 template <typename T>
 struct LuaPush
 {
+    static int New(lua_State *L)
+    {
+        auto p = (T *)lua_newuserdata(L, sizeof(T));
+        // memset(p, 0, sizeof(T));
+        auto pushedType = luaL_getmetatable(L, MetatableName<T>::InstanceName());
+        if (pushedType)
+        {
+            // set metatable to type userdata
+            lua_setmetatable(L, -2);
+            new(p) T; // initialize. see Traits::Destruct
+            return 1;
+        }
+        else
+        {
+            // no metatable
+            lua_pop(L, 1);
+
+            // error
+            lua_pushfstring(L, "push unknown type [%s]", MetatableName<T>::InstanceName());
+            lua_error(L);
+            return 1;
+        }
+    }
+
     static int Push(lua_State *L, const T &value)
     {
         auto p = (T *)lua_newuserdata(L, sizeof(T));

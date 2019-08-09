@@ -37,6 +37,16 @@ public:
         // std::cerr << "~" << MetatableName<T>::TypeName() << std::endl;
     }
 
+    // no argument
+    UserType &PlacementNew(const char *name)
+    {
+        m_staticMethods.StaticMethod(name, [](lua_State *L) {
+            return LuaPush<T>::New(L);
+        });
+        MetaMethod(perilune::MetaKey::__gc, [](T *p) { p->~T(); });
+        return *this;
+    }
+
     UserType &DefaultConstructorAndDestructor()
     {
         using RawType = typename Traits<T>::RawType;

@@ -17,6 +17,11 @@ public:
         m_methodMap.insert(std::make_pair(name, lf));
     }
 
+    void StaticMethod(const char *name, const LuaFunc lf)
+    {
+        m_methodMap.insert(std::make_pair(name, lf));
+    }
+
     // stack#1: userdata
     // stack#2: key
     int Dispatch(lua_State *L)
