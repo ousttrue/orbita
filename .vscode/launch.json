@@ -10,6 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/tests/tests.exe",
             "args": [
+                "reference"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

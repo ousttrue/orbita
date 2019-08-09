@@ -38,6 +38,7 @@ struct LuaGet
         }
     }
 };
+
 template <typename T>
 struct LuaGet<T *>
 {
@@ -64,6 +65,35 @@ struct LuaGet<T *>
         }
     }
 };
+
+template <typename T>
+struct LuaGet<T &>
+{
+    static T &Get(lua_State *L, int index)
+    {
+        auto t = lua_type(L, index);
+        if (t == LUA_TUSERDATA)
+        {
+            // auto p = (T *)lua_touserdata(L, index);
+            // return p;
+            auto p = Traits<T>::GetSelf(L, index);
+            return *p;
+        }
+        else if (t == LUA_TLIGHTUSERDATA)
+        {
+            auto p = (T *)lua_touserdata(L, index);
+            return *p;
+        }
+        else
+        {
+            // return nullptr;
+            std::stringstream ss;
+            ss << "LuaGet<" << typeid(T).name() << "*> is " << lua_typename(L, t);
+            throw std::exception(ss.str().c_str());
+        }
+    }
+};
+
 template <>
 struct LuaGet<int>
 {
@@ -133,8 +163,7 @@ inline std::tuple<> LuaArgsToTuple(lua_State *L, int index, std::tuple<> *)
 template <typename A, typename... ARGS>
 std::tuple<A, ARGS...> LuaArgsToTuple(lua_State *L, int index, std::tuple<A, ARGS...> *)
 {
-    A a = LuaGet<A>::Get(L, index);
-    std::tuple<A> t = std::make_tuple(a);
+    auto t = std::tuple<A>(LuaGet<A>::Get(L, index));
     return std::tuple_cat(std::move(t),
                           LuaArgsToTuple<ARGS...>(L, index + 1));
 }
