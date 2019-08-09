@@ -63,7 +63,11 @@ struct Traits
 
     static RawType *GetSelf(lua_State *L, int index)
     {
-        auto p = (T *)lua_touserdata(L, index);
+        auto p = LuaCheckUserData<T>(L, index);
+        if (!p)
+        {
+            throw std::exception("userdata has not valid metatable");
+        }
         return p;
     }
 
@@ -91,7 +95,12 @@ struct Traits<T *>
 
     static RawType *GetSelf(lua_State *L, int index)
     {
-        return *(PT *)lua_touserdata(L, index);
+        auto pt = LuaCheckUserData<PT>(L, index);
+        if (!pt)
+        {
+            throw std::exception("userdata has not valid metatable");
+        }
+        return *pt;
     }
 
     static void SetPlacementDelete(lua_State *L, int index)
@@ -110,7 +119,12 @@ struct Traits<std::shared_ptr<T>>
 
     static RawType *GetSelf(lua_State *L, int index)
     {
-        return ((PT *)lua_touserdata(L, index))->get();
+        auto pt = LuaCheckUserData<PT>(L, index);
+        if (!pt)
+        {
+            throw std::exception("userdata has not valid metatable");
+        }
+        return pt->get();
     }
 
     static int Destruct(lua_State *L)
