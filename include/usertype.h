@@ -37,11 +37,12 @@ public:
         // std::cerr << "~" << MetatableName<T>::TypeName() << std::endl;
     }
 
-    // no argument
+    template<typename ...ARGS>
     UserType &PlacementNew(const char *name)
     {
         m_staticMethods.StaticMethod(name, [](lua_State *L) {
-            return LuaPush<T>::New(L);
+            auto args = LuaArgsToTuple<ARGS...>(L, 1);
+            return LuaPush<T>::New(L, args);
         });
         MetaMethod(perilune::MetaKey::__gc, [](T *p) { p->~T(); });
         return *this;

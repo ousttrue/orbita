@@ -123,13 +123,21 @@ TEST_CASE("reference", "[value]")
 {
     static int s_new = 0;
     static int s_copy = 0;
+    static int s_dest = 0;
 
     struct Value
     {
         int m_id;
-        Value()
-            : m_id(s_new++)
+        float N;
+
+        Value(float n)
+            : m_id(s_new++), N(n)
         {
+        }
+
+        ~Value()
+        {
+            ++s_dest;
         }
 
         Value(const Value &rhs)
@@ -140,7 +148,8 @@ TEST_CASE("reference", "[value]")
         Value &operator=(const Value &rhs)
         {
             ++s_copy;
-            m_id = rhs.m_id;
+            // m_id = rhs.m_id;
+            N = rhs.N;
             return *this;
         }
     };
@@ -151,12 +160,9 @@ TEST_CASE("reference", "[value]")
     {
         static perilune::UserType<Value> valueType;
         valueType
-            .PlacementNew("new")
-            .StaticMethod("some", [](const Value &v){
-
-                // do nothing
-                return 1;
-
+            .PlacementNew<float>("new")
+            .StaticMethod("get", [](const Value &v) {
+                return v.N;
             })
             .LuaNewType(L);
         lua_setglobal(L, "Value");
@@ -164,16 +170,18 @@ TEST_CASE("reference", "[value]")
 
     luaL_dostring(L, R""(
 
-local value = Value.new()
-return Value.some(value)
+local value = Value.new(2)
+return Value.get(value)
 
 )"");
 
     // new in static method
     // placement new for userdata
     // copy to userdata from static method return
-    REQUIRE(1 == lua_tointeger(L, -1));
-    REQUIRE(0 == s_copy);
+    REQUIRE(2 == lua_tointeger(L, -1));
 
     lua_close(L);
+
+    REQUIRE(0 == s_copy);
+    REQUIRE(1 == s_dest);
 }

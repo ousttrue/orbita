@@ -15,7 +15,8 @@ namespace perilune
 template <typename T>
 struct LuaPush
 {
-    static int New(lua_State *L)
+    template <typename... ARGS, std::size_t... IS>
+    static int _New(lua_State *L, std::tuple<ARGS...> args, std::index_sequence<IS...>)
     {
         auto p = (T *)lua_newuserdata(L, sizeof(T));
         // memset(p, 0, sizeof(T));
@@ -24,7 +25,7 @@ struct LuaPush
         {
             // set metatable to type userdata
             lua_setmetatable(L, -2);
-            new(p) T; // initialize. see Traits::Destruct
+            new (p) T(std::get<IS>(args)...); // initialize. see Traits::Destruct
             return 1;
         }
         else
@@ -39,6 +40,12 @@ struct LuaPush
         }
     }
 
+    template <typename... ARGS>
+    static int New(lua_State *L, std::tuple<ARGS...> args)
+    {
+        return _New(L, args, std::index_sequence_for<ARGS...>());
+    }
+
     static int Push(lua_State *L, const T &value)
     {
         auto p = (T *)lua_newuserdata(L, sizeof(T));
@@ -48,7 +55,7 @@ struct LuaPush
         {
             // set metatable to type userdata
             lua_setmetatable(L, -2);
-            new(p) T; // initialize. see Traits::Destruct
+            new (p) T; // initialize. see Traits::Destruct
             *p = value;
             return 1;
         }
