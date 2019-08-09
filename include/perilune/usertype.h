@@ -94,7 +94,7 @@ public:
         // create metatable for type userdata
         // LuaNewTypeMetaTable(L);
         {
-            assert(luaL_newmetatable(L, MetatableName<T>::TypeName()) == 1);
+            assert(luaL_newmetatable(L, typeid(T).name()) == 1);
             int metatable = lua_gettop(L);
 
             {
@@ -137,7 +137,7 @@ public:
             // push userdata for Type
             auto p = (UserTypeDummy *)lua_newuserdata(L, sizeof(UserTypeDummy));
             // set metatable to type userdata
-            auto pushedType = luaL_getmetatable(L, MetatableName<T>::TypeName());
+            auto pushedType = luaL_getmetatable(L, typeid(T).name());
             lua_setmetatable(L, -2);
         }
     }

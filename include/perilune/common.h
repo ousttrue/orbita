@@ -55,15 +55,6 @@ static const char *ToString(MetaKey key)
     throw std::exception("unknown key");
 }
 
-template <typename T>
-struct MetatableName
-{
-    static const char *TypeName()
-    {
-        return typeid(MetatableName).name();
-    }
-};
-
 // normal type
 template <typename T>
 struct Traits
