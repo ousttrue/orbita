@@ -73,6 +73,40 @@ struct LuaPush
 };
 
 template <typename T>
+struct LuaPush<std::shared_ptr<T>>
+{
+    using PT = std::shared_ptr<T>;
+    static int Push(lua_State *L, const std::shared_ptr<T> &value)
+    {
+        if (!value)
+        {
+            return 0;
+        }
+
+        auto p = (PT *)lua_newuserdata(L, sizeof(PT));
+        auto pushedType = LuaGetMetatable<PT>(L);
+        if (pushedType)
+        {
+            // set metatable to type userdata
+            lua_setmetatable(L, -2);
+            new (p) PT; // initialize. see Traits::Destruct
+            *p = value;
+            return 1;
+        }
+        else
+        {
+            // no metatable
+            lua_pop(L, 1);
+
+            // error
+            lua_pushfstring(L, "push unknown type [%s]", typeid(T).name());
+            lua_error(L);
+            return 1;
+        }
+    }
+};
+
+template <typename T>
 struct LuaPush<T *>
 {
     using PT = T *;
@@ -83,7 +117,7 @@ struct LuaPush<T *>
             return 0;
         }
 
-        auto p = (PT *)lua_newuserdata(L, sizeof(T *));
+        auto p = (PT *)lua_newuserdata(L, sizeof(PT));
         auto pushedType = LuaGetMetatable<T *>(L);
         if (pushedType)
         {

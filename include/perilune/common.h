@@ -120,7 +120,7 @@ struct Traits<std::shared_ptr<T>>
     static RawType *GetSelf(lua_State *L, int index)
     {
         auto pt = LuaCheckUserData<PT>(L, index);
-        if (!pt)
+        if (!pt || !pt->get())
         {
             throw std::exception("userdata has not valid metatable");
         }
@@ -129,8 +129,11 @@ struct Traits<std::shared_ptr<T>>
 
     static int Destruct(lua_State *L)
     {
-        auto self = GetSelf(L, 1);
-        self->~T();
+        auto pt = LuaCheckUserData<PT>(L, 1);
+        if (pt && pt->get())
+        {
+            pt->~PT();
+        }
         return 0;
     }
 
