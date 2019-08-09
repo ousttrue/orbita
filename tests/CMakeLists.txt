@@ -13,8 +13,9 @@ TARGET_COMPILE_DEFINITIONS(${SUB_NAME} PUBLIC
     )
 TARGET_INCLUDE_DIRECTORIES(${SUB_NAME} PUBLIC
     ${LUA_DIR}
+    ../include
     ${DEPENDENCIES_DIR}/Catch2/include
     )
 TARGET_LINK_LIBRARIES(${SUB_NAME}
-    # lualib
+    lualib
     )
