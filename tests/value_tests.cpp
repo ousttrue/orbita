@@ -1,5 +1,5 @@
 #include <catch.hpp>
-#include <perilune.h>
+#include <perilune/perilune.h>
 
 TEST_CASE("value type test", "[value]")
 {

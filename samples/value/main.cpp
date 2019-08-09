@@ -1,4 +1,4 @@
-#include <perilune.h>
+#include <perilune/perilune.h>
 #include <iostream>
 
 struct Lua
