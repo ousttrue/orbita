@@ -16,4 +16,4 @@ ADD_COMPILE_OPTIONS(
     /EHsc
     )
 
-SUBDIRS(lualib lua samples/value samples/pointer samples/tuple)
+SUBDIRS(lualib lua samples/value samples/pointer samples/tuple tests)
