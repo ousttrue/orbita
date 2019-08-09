@@ -108,8 +108,8 @@ int main(int argc, char **argv)
         // lambda
         .StaticMethod("Zero", []() { return Vector3(); })
         .StaticMethod("New", [](float x, float y, float z) { return Vector3(x, y, z); })
-        .MetaMethod(perilune::MetaKey::__add, [](Vector3 a, Vector3 b) {
-            return a + b;
+        .MetaMethod(perilune::MetaKey::__add, [](Vector3 *a, Vector3 b) {
+            return *a + b;
         })
         .MetaMethod(perilune::MetaKey::__tostring, [](Vector3 *v) {
             std::stringstream ss;
