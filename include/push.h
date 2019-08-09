@@ -20,7 +20,7 @@ struct LuaPush
     {
         auto p = (T *)lua_newuserdata(L, sizeof(T));
         // memset(p, 0, sizeof(T));
-        auto pushedType = luaL_getmetatable(L, MetatableName<T>::InstanceName());
+        auto pushedType = LuaGetMetatable<T>(L);
         if (pushedType)
         {
             // set metatable to type userdata
@@ -50,7 +50,7 @@ struct LuaPush
     {
         auto p = (T *)lua_newuserdata(L, sizeof(T));
         // memset(p, 0, sizeof(T));
-        auto pushedType = luaL_getmetatable(L, MetatableName<T>::InstanceName());
+        auto pushedType = LuaGetMetatable<T>(L);
         if (pushedType)
         {
             // set metatable to type userdata
@@ -84,7 +84,7 @@ struct LuaPush<T *>
         }
 
         auto p = (PT *)lua_newuserdata(L, sizeof(T *));
-        auto pushedType = luaL_getmetatable(L, MetatableName<T *>::InstanceName());
+        auto pushedType = LuaGetMetatable<T *>(L);
         if (pushedType)
         {
             // set metatable to type userdata
@@ -111,7 +111,7 @@ struct LuaPush<T &>
     {
         auto p = (PT *)lua_newuserdata(L, sizeof(T));
         memset(p, 0, sizeof(T));
-        auto pushedType = luaL_getmetatable(L, MetatableName<T *>::InstanceName());
+        auto pushedType = LuaGetMetatable<T *>(L);
         if (pushedType)
         {
             // set metatable to type userdata

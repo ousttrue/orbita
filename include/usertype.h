@@ -37,7 +37,7 @@ public:
         // std::cerr << "~" << MetatableName<T>::TypeName() << std::endl;
     }
 
-    template<typename ...ARGS>
+    template <typename... ARGS>
     UserType &PlacementNew(const char *name)
     {
         m_staticMethods.StaticMethod(name, [](lua_State *L) {
@@ -110,7 +110,7 @@ public:
         // LuaNewInstanceMetaTable(L);
         {
             // std::cerr << "create: " << MetatableName<T>::InstanceName() << std::endl;
-            luaL_newmetatable(L, MetatableName<T>::InstanceName());
+            LuaNewMetatable<T>(L);
 
             // first time
             int metatable = lua_gettop(L);

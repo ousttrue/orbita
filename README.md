@@ -12,7 +12,7 @@ header only lua binding
 * [x] indexer
 * [x] pointer type
 * [x] std::shared_ptr
-* [ ] metatable use hash
+* [x] metatable use hash
 * [x] return unknown pointer type to lightuesrdata
 * [x] return unknown value type to error
 * [x] placement new

@@ -161,4 +161,27 @@ auto pop_front(const Tuple &tuple)
                           std::make_index_sequence<std::tuple_size<Tuple>::value - 1>());
 }
 
+template <typename T>
+int LuaGetMetatable(lua_State *L)
+{
+    lua_pushinteger(L, typeid(T).hash_code());
+    return lua_gettable(L, LUA_REGISTRYINDEX);
+}
+
+template <typename T>
+int LuaNewMetatable(lua_State *L)
+{
+    if (LuaGetMetatable<T>(L) != LUA_TNIL) /* name already in use? */
+        return 0;                          /* leave previous value on top, but return 0 */
+    lua_pop(L, 1);
+    lua_createtable(L, 0, 2); /* create metatable */
+    lua_pushstring(L, typeid(T).name());
+    lua_setfield(L, -2, "__name"); /* metatable.__name = tname */
+
+    lua_pushinteger(L, typeid(T).hash_code());
+    lua_pushvalue(L, -2);
+    lua_settable(L, LUA_REGISTRYINDEX); /* registry.name = metatable */
+    return 1;
+}
+
 } // namespace perilune
