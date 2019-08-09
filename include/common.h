@@ -114,6 +114,33 @@ struct Traits<T *>
     }
 };
 
+// for shared_ptr
+template <typename T>
+struct Traits<std::shared_ptr<T>>
+{
+    using RawType = T;
+
+    using PT = std::shared_ptr<T>;
+
+    static RawType *GetSelf(lua_State *L, int index)
+    {
+        return ((PT *)lua_touserdata(L, index))->get();
+    }
+
+    static int Destruct(lua_State *L)
+    {
+        auto self = GetSelf(L, 1);
+        self->~T();
+        return 0;
+    }
+
+    static void SetPlacementDelete(lua_State *L, int index)
+    {
+        lua_pushcfunction(L, &Destruct);
+        lua_setfield(L, index, "__gc");
+    }
+};
+
 template <typename T>
 struct remove_const_ref
 {

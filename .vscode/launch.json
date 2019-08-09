@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/tests/tests.exe",
             "args": [
-                "reference"
+                "shared_ptr"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

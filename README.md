@@ -4,14 +4,14 @@ header only lua binding
 
 ## features
 
-* [ ] reference argument
+* [x] reference argument
 * [x] this pointer by upvalue
 * [x] getter
 * [ ] setter
 * [x] operator
 * [x] indexer
 * [x] pointer type
-* [ ] std::shared_ptr
+* [x] std::shared_ptr
 * [ ] metatable use hash
 * [x] return unknown pointer type to lightuesrdata
 * [x] return unknown value type to error
