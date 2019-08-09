@@ -34,7 +34,7 @@ struct LuaPush
             lua_pop(L, 1);
 
             // error
-            lua_pushfstring(L, "push unknown type [%s]", MetatableName<T>::InstanceName());
+            lua_pushfstring(L, "push unknown type [%s]", typeid(T).name());
             lua_error(L);
             return 1;
         }
@@ -65,7 +65,7 @@ struct LuaPush
             lua_pop(L, 1);
 
             // error
-            lua_pushfstring(L, "push unknown type [%s]", MetatableName<T>::InstanceName());
+            lua_pushfstring(L, "push unknown type [%s]", typeid(T).name());
             lua_error(L);
             return 1;
         }

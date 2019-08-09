@@ -62,11 +62,6 @@ struct MetatableName
     {
         return typeid(MetatableName).name();
     }
-
-    static const char *InstanceName()
-    {
-        return typeid(T).name();
-    }
 };
 
 // normal type
