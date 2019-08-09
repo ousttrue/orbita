@@ -184,4 +184,28 @@ int LuaNewMetatable(lua_State *L)
     return 1;
 }
 
+template <typename T>
+T *LuaCheckUserData(lua_State *L, int ud)
+{
+    if (lua_getmetatable(L, ud))
+    { /* does it have a metatable? */
+        LuaGetMetatable<T>(L);
+        // luaL_getmetatable(L, tname);  /* get correct metatable */
+        auto isEqual = lua_rawequal(L, -1, -2);
+        lua_pop(L, 2); /* remove both metatables */
+        if (isEqual)
+        {
+            return (T *)lua_touserdata(L, ud);
+        }
+        else
+        {
+            return nullptr;
+        }
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
 } // namespace perilune

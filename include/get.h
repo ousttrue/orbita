@@ -1,5 +1,6 @@
 #pragma once
 #include <sstream>
+#include "common.h"
 #include "string_win32.h"
 
 namespace perilune
@@ -24,7 +25,7 @@ struct LuaGet
         auto t = lua_type(L, index);
         if (t == LUA_TUSERDATA)
         {
-            return *(T *)lua_touserdata(L, index);
+            return *LuaCheckUserData<T>(L, index);
         }
         else if (t == LUA_TTABLE)
         {
@@ -47,9 +48,19 @@ struct LuaGet<T *>
         auto t = lua_type(L, index);
         if (t == LUA_TUSERDATA)
         {
-            // auto p = (T *)lua_touserdata(L, index);
-            // return p;
-            return Traits<T *>::GetSelf(L, index);
+            auto p = LuaCheckUserData<T>(L, index);
+            if (p)
+            {
+                return p;
+            }
+
+            auto pp = LuaCheckUserData<T *>(L, index);
+            if (pp)
+            {
+                return *pp;
+            }
+
+            throw std::exception("invalid value");
         }
         else if (t == LUA_TLIGHTUSERDATA)
         {
@@ -74,10 +85,19 @@ struct LuaGet<T &>
         auto t = lua_type(L, index);
         if (t == LUA_TUSERDATA)
         {
-            // auto p = (T *)lua_touserdata(L, index);
-            // return p;
-            auto p = Traits<T>::GetSelf(L, index);
-            return *p;
+            auto p = LuaCheckUserData<T>(L, index);
+            if (p)
+            {
+                return *p;
+            }
+
+            auto pp = LuaCheckUserData<T *>(L, index);
+            if (pp)
+            {
+                return **pp;
+            }
+
+            throw std::exception("invalid value");
         }
         else if (t == LUA_TLIGHTUSERDATA)
         {
