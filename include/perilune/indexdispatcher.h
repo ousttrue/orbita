@@ -131,6 +131,11 @@ public:
         m_map.insert(std::make_pair(name, MetaValue{true, func}));
     }
 
+    void LuaGetter(const char *name, const LuaFunc &lf)
+    {
+        m_map.insert(std::make_pair(name, MetaValue{false, lf}));
+    }
+
     // for lambda
     template <typename F>
     void Getter(const char *name, F f)
