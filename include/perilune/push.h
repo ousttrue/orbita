@@ -245,6 +245,22 @@ struct LuaPush<std::string>
     }
 };
 
+template <std::size_t N>
+struct LuaPush<std::array<float, N>>
+{
+    static int Push(lua_State *L, const std::array<float, N> &a)
+    {
+        lua_newtable(L);
+        for (int i = 0; i < N; ++i)
+        {
+            lua_pushinteger(L, i + 1);
+            lua_pushnumber(L, a[i]);
+            lua_settable(L, -3);
+        }
+        return 1;
+    }
+};
+
 template <typename T>
 struct LuaIndexer
 {
