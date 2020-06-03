@@ -209,10 +209,10 @@ std::tuple<ARGS...> LuaArgsToTuple(lua_State *L, int index)
 
 #pragma region LuaTableToTuple
 template <typename T>
-static T LuaTableGet(lua_State *L, int index, int tableIndex)
+static T LuaTableGet(lua_State *L, int tableIndex, int itemIndex)
 {
-    lua_pushinteger(L, tableIndex);
-    lua_gettable(L, index);
+    lua_pushinteger(L, itemIndex);
+    lua_gettable(L, tableIndex);
     auto t = LuaGet<T>::Get(L, -1);
     lua_pop(L, 1);
     return t;
@@ -248,7 +248,7 @@ std::vector<T> LuaGetVector(lua_State *L, int index)
     std::vector<T> list;
     for (int i = 1; i <= length; ++i)
     {
-        auto value = perilune::LuaTableGet<std::string>(L, i, index);
+        auto value = perilune::LuaTableGet<std::string>(L, index, i);
         list.push_back(value);
     }
     return list;
