@@ -122,6 +122,16 @@ struct LuaGet<int>
         return (int)luaL_checkinteger(L, index);
     }
 };
+
+template <>
+struct LuaGet<bool>
+{
+    static bool Get(lua_State *L, int index)
+    {
+        return lua_toboolean(L, index);
+    }
+};
+
 template <>
 struct LuaGet<float>
 {
