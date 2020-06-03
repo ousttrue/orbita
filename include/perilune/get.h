@@ -241,4 +241,17 @@ std::tuple<ARGS...> LuaTableToTuple(lua_State *L, int index, int tableIndex = 1)
 
 #pragma endregion
 
+template <typename T>
+std::vector<T> LuaGetVector(lua_State *L, int index)
+{
+    auto length = lua_rawlen(L, index);
+    std::vector<T> list;
+    for (int i = 1; i <= length; ++i)
+    {
+        auto value = perilune::LuaTableGet<std::string>(L, i, index);
+        list.push_back(value);
+    }
+    return list;
+}
+
 } // namespace perilune
